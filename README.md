@@ -1,10 +1,14 @@
-## General info
-This project is an interactive deep learning framework that allows users to track and adjust the performance by adding new training data. In contrast to traditional deep learning model training where all data are loaded in the beginning and performance is measured at the end of training time/after convergence, we trained a model continuously in the cloud(?) or on local computer while monitoring the model progress and annotating new data in web interface (powered by [https://imjoy.io]). 
+## ImJoy-powered Interactive Segmentation
+
+This project enables deep learning powered interactive segmentation with ImJoy.
+
+In contrast to traditional deep learning model training where all the annotations are collected before the training, interactive learning runs the model training while adding new annotations.
 	
 ## Key feature
-* Using ImJoy as an interface for customized data upload and labelling
+* Using ImJoy as an interface for data loading and annotation
 * Track training progress and guide the model throughout training
-* Throughout training, the model sees the most recent data and groundtruth. Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
+
+Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
 ## Installation
 ```bash
@@ -22,11 +26,17 @@ Start a jupyter notebook with ImJoy
 imjoy --jupyter
 ```
 
+You can download our example dataset to get started:
+```bash
+# this will save the example dataset to `./data/hpa_dataset_v2`
+python download_example_dataset.py
+```
+
 Create a jupyter notebook and run the followin code in a cell:
 ```python
-from imjoy_plugin import run_interactive_ml
+from imjoy_plugin import start_interactive_segmentation
 
-run_interactive_ml()
+start_interactive_segmentation("./data/hpa_dataset_v2", ["microtubules.png", "er.png", "nuclei.png"], object_name="cell", scale_factor=0.5, resume=True)
 ```
 
 We also made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**

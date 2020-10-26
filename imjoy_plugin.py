@@ -3,27 +3,22 @@ import time
 from imjoy import api
 from interactive_trainer import InteractiveTrainer
 
-trainer = InteractiveTrainer.get_instance(
-    "./data/hpa_dataset_v2",
-    ["microtubules.png", "er.png", "nuclei.png"],
-    object_name="cell",
-    scale_factor=0.5,
-    initial_pool=True,
-)
-
 
 class ImJoyPlugin:
+    def __init__(self, trainer):
+        self._trainer = trainer
+
     async def setup(self):
         pass
 
     def start_training(self):
-        trainer.start()
+        self._trainer.start()
 
     def stop_training(self):
-        trainer.stop()
+        self._trainer.stop()
 
     async def get_next_sample(self):
-        image, _, info = trainer.get_test_sample()
+        image, _, info = self._trainer.get_test_sample()
         self.current_sample_name = info["name"]
         self.current_image = image
         await self.viewer.view_image(
@@ -31,23 +26,32 @@ class ImJoyPlugin:
         )
 
     async def predict(self):
-        polygons = trainer.predict(self.current_image)
+        polygons = self._trainer.predict(self.current_image)
         self.current_annotation = polygons
         self.geojson_layer = await self.viewer.add_shapes(
-            polygons, shape_type="polygon", edge_color="red", name=trainer.object_name
+            polygons,
+            shape_type="polygon",
+            edge_color="red",
+            name=self._trainer.object_name,
         )
 
     async def send_for_training(self):
         self.current_annotation = await self.geojson_layer.get_features()
-        trainer.push_sample(
+        self._trainer.push_sample(
             self.current_sample_name, self.current_annotation, target_folder="train"
         )
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
-        trainer.push_sample(
+        self._trainer.push_sample(
             self.current_sample_name, self.current_annotation, target_folder="valid"
         )
+    
+    def show_progress(self):
+        if len(self._trainer.reports) > 0:
+            api.showMessage(str(self._trainer.reports[-1]))
+        else:
+            api.showMessage('No progress yet.')
 
     async def run(self, ctx):
         self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
@@ -65,6 +69,11 @@ class ImJoyPlugin:
                         "type": "button",
                         "label": "Start Training",
                         "callback": self.start_training,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Show Progress",
+                        "callback": self.show_progress,
                     },
                     {
                         "type": "button",
@@ -91,5 +100,6 @@ class ImJoyPlugin:
         )
 
 
-def run_interactive_ml():
-    api.export(ImJoyPlugin())
+def start_interactive_segmentation(*args, **kwargs):
+    trainer = InteractiveTrainer.get_instance(*args, **kwargs)
+    api.export(ImJoyPlugin(trainer))
