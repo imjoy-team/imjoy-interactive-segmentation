@@ -2,16 +2,22 @@ import os
 import random
 import shutil
 import logging
+import json
+import time
 import tensorflow as tf
 import segmentation_models as sm
 import albumentations as A
 import numpy as np
 from tqdm import tqdm
+import imageio
+from skimage import measure, morphology
+from skimage.transform import rescale
 
 from imgseg.geojson_utils import gen_mask_from_geojson
 from data_utils import mask_to_geojson
-import imageio
-
+from imgseg.hpa_seg_utils import label_nuclei
+import asyncio
+import janus
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,8 +31,12 @@ logging.basicConfig(
 logger = logging.getLogger("interactive-trainer." + __name__)
 
 
-def load_unet_model(backbone="mobilenetv2"):
+def load_unet_model(model_path=None, backbone="mobilenetv2"):
     preprocess_input = sm.get_preprocessing(backbone)
+    if model_path and os.path.exists(model_path):
+        logger.info("model loaded from %s", model_path)
+        return tf.keras.models.load_model(model_path)
+
     # define model
     model = sm.Unet(
         backbone,
@@ -43,6 +53,7 @@ def load_unet_model(backbone="mobilenetv2"):
         loss=sm.losses.bce_jaccard_loss,
         metrics=[sm.metrics.iou_score],
     )
+    logger.info("model built from scratch, backbone: %s", backbone)
     return model
 
 
@@ -76,28 +87,39 @@ def byte_scale(img):
     return img
 
 
-def load_image(img_path, channels, resize=None):
+def load_image(img_path, channels, scale_factor):
     imgs = []
+    last_img = None
     for ch in channels:
-        logger.info('reading ' + ch)
+        if ch is None:
+            imgs.append(None)
+            continue
         img = imageio.imread(os.path.join(img_path, ch))
-        if resize is not None:
-            new_x, new_y = resize
-            img = img.resize((new_x, new_y))
+        if scale_factor != 1.0:
+            img = rescale(
+                img, scale_factor, multichannel=(img.ndim == 3), anti_aliasing=True
+            )
         if len(img.shape) == 2:
             imgs.append(img)
+            last_img = img
         elif len(img.shape) == 3:
             for i in range(img.shape[2]):
                 imgs.append(img[:, :, i])
+            last_img = img[:, :, 0]
         else:
             raise Exception("invalid image dimension number: " + str(len(img.shape)))
+
+    # fill empty channels with zeros
+    for i in range(len(imgs)):
+        if imgs[i] is None:
+            imgs[i] = np.zeros_like(last_img)
+
     normalized = byte_scale(np.stack(imgs, axis=2)) / 255.0
+
     return normalized.astype("float32")
 
 
-def load_sample_pool(
-    data_dir, folder, input_channels, target_channels, target_size=None
-):  # folder='test'
+def load_sample_pool(data_dir, folder, input_channels, target_channels, scale_factor):
     sample_list = [
         name
         for name in os.listdir(os.path.join(data_dir, folder))
@@ -111,8 +133,8 @@ def load_sample_pool(
     )
     for sample_name in tqdm(sample_list):
         sample_path = os.path.join(data_dir, folder, sample_name)
-        img = load_image(sample_path, input_channels, target_size)
-        mask = load_image(sample_path, target_channels, target_size)
+        img = load_image(sample_path, input_channels, scale_factor)
+        mask = load_image(sample_path, target_channels, scale_factor)
         info = {"name": sample_name, "path": sample_path}
         sample_pool.append((img, mask, info))
     logger.info(
@@ -122,57 +144,162 @@ def load_sample_pool(
 
 
 class InteractiveTrainer:
+    __instance__ = None
+
+    @staticmethod
+    def get_instance(*args, **kwargs):
+        """Static method to fetch the current instance."""
+        if not InteractiveTrainer.__instance__:
+            InteractiveTrainer(*args, **kwargs)
+        return InteractiveTrainer.__instance__
+
     def __init__(
-        self, data_dir, input_channels, folder="train", object_name="cell", mask_type="border_mask", batch_size=2, max_pool_length=30
+        self,
+        data_dir,
+        input_channels,
+        folder="train",
+        object_name="cell",
+        mask_type="border_mask",
+        batch_size=2,
+        max_pool_length=30,
+        min_object_size=100,
+        scale_factor=1.0,
+        initial_pool=True,
     ):
-        self.model = load_unet_model()
-        self.input_channels = input_channels
+        if InteractiveTrainer.__instance__ is None:
+            InteractiveTrainer.__instance__ = self
+        else:
+            raise Exception(
+                "You cannot create another InteractiveTrainer class, use InteractiveTrainer.get_instance() to retrieve the current instance."
+            )
+        self.data_dir = data_dir
+        self.model_dir = os.path.join(self.data_dir, "__models__")
+        # load latest model if exists
+        self.model = load_unet_model(os.path.join(self.model_dir, "model_latest.h5"))
         self.object_name = object_name
         self.mask_type = mask_type
+        self.input_channels = input_channels
         self.target_channels = [f"{self.object_name}_{self.mask_type}.png"]
-        self.sample_pool = load_sample_pool(
-            data_dir, folder, input_channels, self.target_channels
-        )
+        self.scale_factor = scale_factor
+        self.queue = janus.Queue()
+        if initial_pool:
+            self.sample_pool = load_sample_pool(
+                data_dir,
+                folder,
+                input_channels,
+                self.target_channels,
+                self.scale_factor,
+            )
+            _img, _mask, _info = self.sample_pool[0]
+            assert (
+                _img.shape[2] == self.model.input_shape[3]
+            ), f"shape mismatch: { _img.shape[2] } != {self.model.input_shape[3]}"
+            assert (
+                _mask.shape[2] == self.model.output_shape[3]
+            ), f"shape mismatch: { _mask.shape[2] } != {self.model.output_shape[3]}"
+        else:
+            self.sample_pool = []
+
         self.augmentor = get_augmentor()
         self.batch_size = batch_size
-        self.data_dir = data_dir
+
         self.latest_samples = []
         self.max_pool_length = max_pool_length
+        self.min_object_size = min_object_size
+        self.loop = asyncio.get_running_loop()
+        self.reports = []
+        self.training_config = {"save_freq": 200}
+        self.loop.run_in_executor(
+            None,
+            self._training_loop,
+            self.queue.sync_q,
+            self.reports,
+            self.training_config,
+        )
 
     def train_once(self):
         batchX = []
         batchY = []
         for i in range(self.batch_size):
-            x, y, info = self.get_training_sample(sample_pool)
+            x, y, info = self.get_training_sample()
             augmented = self.augmentor(image=x, mask=y)
             batchX += [augmented["image"]]
             batchY += [augmented["mask"]]
-        self.model.train_on_batch(
+        loss = self.model.train_on_batch(
             np.asarray(batchX, dtype="float32"), np.asarray(batchY, dtype="float32")
         )
+        return loss
 
     def load_input_image(self, folder, sample_name):
         img = load_image(
-            os.path.join(data_dir, folder, sample_name), self.input_channels
+            os.path.join(self.data_dir, folder, sample_name),
+            self.input_channels,
+            self.scale_factor,
         )
         return img
 
     def load_target_image(self, folder, sample_name):
         img = load_image(
-            os.path.join(data_dir, folder, sample_name), self.target_channels
+            os.path.join(self.data_dir, folder, sample_name),
+            self.target_channels,
+            self.scale_factor,
         )
         return img
 
-    def start(self):
-        logger.info("start training")
+    def _training_loop(self, sync_q, reports, training_config):
+        training_enabled = False
+        iteration = 0
         while True:
-            self.train_once()
+            try:
+                task = sync_q.get(block=False)
+                if task["type"] == "stop":
+                    training_enabled = False
+                elif task["type"] == "start":
+                    training_enabled = True
+                elif task["type"] == "predict":
+                    result = self.predict(task["data"])
+                    task["callback"](result)
+                else:
+                    logger.warn("unsupported task type %s", task["type"])
+                sync_q.task_done()
+            except janus.SyncQueueEmpty:
+                pass
+
+            if training_enabled:
+                loss = self.train_once()
+                iteration += 1
+                reports.append({"loss": loss, "iteration": iteration})
+                if iteration % training_config["save_freq"] == 0:
+                    self.save_model()
+                # logger.info('trained for 1 iteration %s', reports[-1])
+            else:
+                time.sleep(0.1)
+
+    def save_model(self, label="latest"):
+        os.makedirs(self.model_dir, exists_ok=True)
+        self.model.save(os.path.join(self.model_dir, f"model_{label}.h5"))
+
+    def start(self):
+        logger.info("starting training")
+        self.queue.sync_q.put({"type": "start"})
+
+    def stop(self):
+        logger.info("stopping training")
+        self.queue.sync_q.put({"type": "stop"})
+
+    def get_reports(self):
+        return self.reports
 
     def get_training_sample(self):
         return random.choice(self.sample_pool)
 
     def get_test_sample(self):
-        sample_name = random.choice(os.listdir(os.path.join(self.data_dir, "test")))
+        samples = [
+            name
+            for name in os.listdir(os.path.join(self.data_dir, "test"))
+            if not name.startswith(".")
+        ]
+        sample_name = random.choice(samples)
         img = self.load_input_image("test", sample_name)
         info = {
             "name": sample_name,
@@ -206,6 +333,7 @@ class InteractiveTrainer:
                 self.sample_pool.pop(0)
 
     def predict(self, image):
-        mask = self.model.predict(image)
-        geojson = mask_to_geojson(mask, label="cell", simplify_tol=1.5)
+        mask = self.model.predict(np.expand_dims(image, axis=0))
+        labels = label_nuclei(mask[0, :, :, :])
+        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
         return geojson

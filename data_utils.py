@@ -21,7 +21,7 @@ def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
     # Get all object ids, remove 0 since this is background
     ind_objs = np.unique(img_mask)
     ind_objs = np.delete(ind_objs, np.where(ind_objs == 0))
-    for obj_int in np.nditer(ind_objs):
+    for obj_int in np.nditer(ind_objs, flags=["zerosize_ok"]):
         # Create binary mask for current object and find contour
         img_mask_loop = np.zeros((img_mask.shape[0], img_mask.shape[1]))
         img_mask_loop[img_mask == obj_int] = 1

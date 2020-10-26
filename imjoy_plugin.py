@@ -3,10 +3,12 @@ import time
 from imjoy import api
 from interactive_trainer import InteractiveTrainer
 
-trainer = InteractiveTrainer(
+trainer = InteractiveTrainer.get_instance(
     "./data/hpa_dataset_v2",
     ["microtubules.png", "er.png", "nuclei.png"],
     object_name="cell",
+    scale_factor=0.5,
+    initial_pool=True,
 )
 
 
@@ -17,13 +19,15 @@ class ImJoyPlugin:
     def start_training(self):
         trainer.start()
 
+    def stop_training(self):
+        trainer.stop()
+
     async def get_next_sample(self):
         image, _, info = trainer.get_test_sample()
-        api.alert(str(image.shape))
         self.current_sample_name = info["name"]
         self.current_image = image
         await self.viewer.view_image(
-            image, type="itk-vtk", name=self.current_sample_name
+            (image * 255).astype("uint8"), type="itk-vtk", name=self.current_sample_name
         )
 
     async def predict(self):
@@ -61,6 +65,11 @@ class ImJoyPlugin:
                         "type": "button",
                         "label": "Start Training",
                         "callback": self.start_training,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Stop Training",
+                        "callback": self.stop_training,
                     },
                     {
                         "type": "button",

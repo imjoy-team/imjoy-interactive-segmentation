@@ -10,3 +10,4 @@ albumentations
 ipykernel
 segmentation_models
 tqdm
+janus==0.6.1

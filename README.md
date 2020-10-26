@@ -15,11 +15,18 @@ python3 -m ipykernel install --user --name imjoy-iteractive-ml --display-name "I
 ```
 
 
-## Example of use
+## Usge
 
 Start a jupyter notebook with ImJoy
 ```bash
 imjoy --jupyter
 ```
 
-We made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**
+Create a jupyter notebook and run the followin code in a cell:
+```python
+from imjoy_plugin import run_interactive_ml
+
+run_interactive_ml()
+```
+
+We also made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**
