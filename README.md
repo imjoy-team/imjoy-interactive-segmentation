@@ -6,5 +6,20 @@ This project is an interactive deep learning framework that allows users to trac
 * Track training progress and guide the model throughout training
 * Throughout training, the model sees the most recent data and groundtruth. Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
+## Installation
+```bash
+conda create -n iteractive-ml python=3.7.2 -y
+conda activate iteractive-ml
+pip install -r requirements.txt
+python3 -m ipykernel install --user --name imjoy-iteractive-ml --display-name "ImJoy Iteractive ML"
+```
+
+
 ## Example of use
+
+Start a jupyter notebook with ImJoy
+```bash
+imjoy --jupyter
+```
+
 We made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**
