@@ -19,7 +19,7 @@ python3 -m ipykernel install --user --name imjoy-iteractive-ml --display-name "I
 ```
 
 
-## Usge
+## Usage
 
 Start a jupyter notebook with ImJoy
 ```bash
