@@ -12,13 +12,13 @@ Therefore, users can encourage the model to learn by feeding in appropriate data
 
 ## Installation
 ```bash
-conda create -n iteractive-ml python=3.7.2 -y
-conda activate iteractive-ml
+conda create -n interactive-ml python=3.7.2 -y
+conda activate interactive-ml
 
 git clone https://github.com/CellProfiling/imjoy-interactive-segmentation.git
 cd imjoy-interactive-segmentation
 pip install -r requirements.txt
-python3 -m ipykernel install --user --name imjoy-iteractive-ml --display-name "ImJoy Iteractive ML"
+python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
 ```
 
 
