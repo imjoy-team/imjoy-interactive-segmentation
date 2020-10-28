@@ -19,6 +19,7 @@ from data_utils import mask_to_geojson
 from imgseg.hpa_seg_utils import label_nuclei
 import asyncio
 import janus
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,7 +37,7 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
     # disable warnings temporary
     warnings.filterwarnings("ignore")
     preprocess_input = sm.get_preprocessing(backbone)
-    if model_path and os.path.exists(model_path):
+    if model_path:
         logger.info("model loaded from %s", model_path)
         model = tf.keras.models.load_model(model_path, compile=False)
     else:
@@ -61,21 +62,15 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
     return model
 
 
-def get_augmentor():
+def get_augmentor(target_size=128):
+    crop_size = int(target_size * 1.415)
     return A.Compose(
         [
-            A.RandomCrop(362, 362),
-            A.OneOf(
-                [
-                    A.VerticalFlip(),
-                    A.HorizontalFlip(),
-                    A.RandomBrightnessContrast(p=0.8),
-                    A.RandomGamma(p=0.8),
-                ],
-                p=1,
-            ),
-            A.RandomRotate90(p=1),
-            A.CenterCrop(256, 256),
+            A.RandomCrop(crop_size, crop_size),
+            A.VerticalFlip(),
+            A.OneOf([A.RandomBrightnessContrast(p=0.8), A.RandomGamma(p=0.8),], p=1,),
+            A.Rotate(limit=180, p=1),
+            A.CenterCrop(target_size, target_size),
         ]
     )
 
@@ -177,11 +172,28 @@ class InteractiveTrainer:
                 "You cannot create another InteractiveTrainer class, use InteractiveTrainer.get_instance() to retrieve the current instance."
             )
         self._training_loop_running = False
+        self.training_enabled = False
         self.data_dir = data_dir
         self.model_dir = os.path.join(self.data_dir, "__models__")
+        self.reports = []
         # load latest model if exists
         if resume:
-            checkpoint = os.path.join(self.model_dir, "model_latest.h5")
+            if resume == True:
+                label = "latest"
+            else:
+                label = resume
+            checkpoint = os.path.join(self.model_dir, f"model_{label}.h5")
+            # only complain error if resume was set to a specific label
+            if resume != True and not os.path.exists(checkpoint):
+                raise Exception(
+                    f"checkpoint file not found: {checkpoint}, if you want to start from scratch, please set resume to False."
+                )
+            else:
+                checkpoint = None
+            report_path = os.path.join(self.model_dir, f"reports_{label}.json")
+            if os.path.exists(report_path):
+                with open(report_path, "r") as f:
+                    self.reports = json.load(f)
         else:
             checkpoint = None
         self.model = load_unet_model(checkpoint)
@@ -202,14 +214,23 @@ class InteractiveTrainer:
             _mask.shape[2] == self.model.output_shape[3]
         ), f"shape mismatch: { _mask.shape[2] } != {self.model.output_shape[3]}"
 
-        self.augmentor = get_augmentor()
+        min_size = min(_img.shape[0], _img.shape[1])
+        if min_size >= 512:
+            training_size = 256
+        elif min_size >= 256:
+            training_size = 128
+        else:
+            raise Exception(
+                f"invalid input image size: {min_size}, it should not smaller than 256x256"
+            )
+
+        self.augmentor = get_augmentor(target_size=training_size)
         self.batch_size = batch_size
 
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
         self.loop = asyncio.get_running_loop()
-        self.reports = []
         self.training_config = {"save_freq": 200}
         self.start_training_loop()
 
@@ -252,17 +273,21 @@ class InteractiveTrainer:
         return img
 
     def _training_loop(self, sync_q, reports, training_config):
-        training_enabled = False
-        iteration = 0
+        self.training_enabled = False
+        if len(self.reports) > 0:
+            iteration = self.reports[-1]["iteration"]
+        else:
+            iteration = 0
         self._training_loop_running = True
         while True:
             try:
                 try:
                     task = sync_q.get_nowait()
                     if task["type"] == "stop":
-                        training_enabled = False
+                        self.training_enabled = False
+                        self.save_model()
                     elif task["type"] == "start":
-                        training_enabled = True
+                        self.training_enabled = True
                     # elif task["type"] == "predict":
                     #     result = self.predict(task["data"])
                     #     task["callback"](result)
@@ -272,7 +297,7 @@ class InteractiveTrainer:
                 except janus.SyncQueueEmpty:
                     pass
 
-                if training_enabled:
+                if self.training_enabled:
                     loss_metrics = self.train_once()
                     iteration += 1
                     reports.append(
@@ -296,6 +321,8 @@ class InteractiveTrainer:
     def save_model(self, label="latest"):
         os.makedirs(self.model_dir, exist_ok=True)
         self.model.save(os.path.join(self.model_dir, f"model_{label}.h5"))
+        with open(os.path.join(self.model_dir, f"reports_{label}.json"), "w") as f:
+            json.dump(self.reports, f)
 
     def start(self):
         logger.info("starting training")

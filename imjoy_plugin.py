@@ -110,11 +110,14 @@ class ImJoyPlugin:
             if len(self._trainer.reports) > 0:
                 v = self._trainer.reports[-1]
                 if v["iteration"] != self.last_iteration:
-                    await chart.set_title(
-                        f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
-                    )
+                    title = f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
+                    if not self._trainer.training_enabled:
+                        title += " (stopped)"
+                    await chart.set_title(title)
                     await chart.append("loss", v)
                     self.last_iteration = v["iteration"]
+                elif self._trainer.training_enabled:
+                    await chart.set_title("Starting...")
             self.viewer.set_timeout(refresh, 2000)
 
         self.viewer.set_timeout(refresh, 2000)
