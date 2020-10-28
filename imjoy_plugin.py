@@ -9,7 +9,8 @@ class ImJoyPlugin:
         self._trainer = trainer
 
     async def setup(self):
-        pass
+        self.geojson_layer = None
+        self.mask_layer = None
 
     def start_training(self):
         self._trainer.start()
@@ -26,14 +27,27 @@ class ImJoyPlugin:
         )
 
     async def predict(self):
-        polygons = self._trainer.predict(self.current_image)
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        polygons, mask = self._trainer.predict(self.current_image)
         self.current_annotation = polygons
-        self.geojson_layer = await self.viewer.add_shapes(
-            polygons,
-            shape_type="polygon",
-            edge_color="red",
-            name=self._trainer.object_name,
-        )
+        if len(polygons) > 0:
+            self.mask_layer = await self.viewer.view_image(
+                mask, type="itk-vtk", name=self._trainer.object_name+'_mask', opacity=0.5
+            )
+            if len(polygons)<2000:
+                self.geojson_layer = await self.viewer.add_shapes(
+                    polygons,
+                    shape_type="polygon",
+                    edge_color="red",
+                    name=self._trainer.object_name,
+                )
+            else:
+                api.showMessage(f'Too many object detected ({len(polygons)}).')
+        else:
+            api.showMessage('No object detected.')
 
     async def send_for_training(self):
         self.current_annotation = await self.geojson_layer.get_features()

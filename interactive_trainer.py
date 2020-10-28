@@ -284,8 +284,9 @@ class InteractiveTrainer:
                 try:
                     task = sync_q.get_nowait()
                     if task["type"] == "stop":
-                        self.training_enabled = False
-                        self.save_model()
+                        if self.training_enabled:
+                            self.training_enabled = False
+                            self.save_model()
                     elif task["type"] == "start":
                         self.training_enabled = True
                     # elif task["type"] == "predict":
@@ -383,4 +384,4 @@ class InteractiveTrainer:
         mask = self.model.predict(np.expand_dims(image, axis=0))
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
-        return geojson
+        return geojson, mask[0, :, :, :]
