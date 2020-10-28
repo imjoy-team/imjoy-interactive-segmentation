@@ -46,34 +46,20 @@ class ImJoyPlugin:
         self._trainer.push_sample(
             self.current_sample_name, self.current_annotation, target_folder="valid"
         )
-    
-    def show_progress(self):
-        if len(self._trainer.reports) > 0:
-            api.showMessage(str(self._trainer.reports[-1]))
-        else:
-            api.showMessage('No progress yet.')
 
     async def run(self, ctx):
         self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
-        await self.viewer.set_ui(
+        self.viewer.set_loader(True)
+        await self.viewer.add_widget(
             {
                 "_rintf": True,
-                "title": "Utilities",
+                "name": "Control",
+                "type": "control",
                 "elements": [
-                    {
-                        "type": "button",
-                        "label": "Next Image",
-                        "callback": self.get_next_sample,
-                    },
                     {
                         "type": "button",
                         "label": "Start Training",
                         "callback": self.start_training,
-                    },
-                    {
-                        "type": "button",
-                        "label": "Show Progress",
-                        "callback": self.show_progress,
                     },
                     {
                         "type": "button",
@@ -82,9 +68,10 @@ class ImJoyPlugin:
                     },
                     {
                         "type": "button",
-                        "label": "Predict",
-                        "callback": self.predict,
+                        "label": "Get an Image",
+                        "callback": self.get_next_sample,
                     },
+                    {"type": "button", "label": "Predict", "callback": self.predict,},
                     {
                         "type": "button",
                         "label": "Send for Training",
@@ -98,6 +85,40 @@ class ImJoyPlugin:
                 ],
             }
         )
+        losses = self._trainer.reports or []
+        chart = await self.viewer.add_widget(
+            {
+                "_rintf": True,
+                "name": "Training",
+                "type": "vega",
+                "schema": {
+                    "$schema": "https://vega.github.io/schema/vega-lite/v4.8.1.json",
+                    "mark": "line",
+                    "encoding": {
+                        "x": {"type": "quantitative", "field": "iteration"},
+                        "y": {"type": "quantitative", "field": "loss"},
+                    },
+                    "data": {"name": "loss"},
+                    "datasets": {"loss": losses},
+                },
+            }
+        )
+
+        self.last_iteration = None
+
+        async def refresh():
+            if len(self._trainer.reports) > 0:
+                v = self._trainer.reports[-1]
+                if v["iteration"] != self.last_iteration:
+                    await chart.set_title(
+                        f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
+                    )
+                    await chart.append("loss", v)
+                    self.last_iteration = v["iteration"]
+            self.viewer.set_timeout(refresh, 2000)
+
+        self.viewer.set_timeout(refresh, 2000)
+        self.viewer.set_loader(False)
 
 
 def start_interactive_segmentation(*args, **kwargs):

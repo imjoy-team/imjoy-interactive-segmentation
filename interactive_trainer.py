@@ -38,7 +38,7 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
     preprocess_input = sm.get_preprocessing(backbone)
     if model_path and os.path.exists(model_path):
         logger.info("model loaded from %s", model_path)
-        model = tf.keras.models.load_model(model_path,compile=False)
+        model = tf.keras.models.load_model(model_path, compile=False)
     else:
         # define model
         model = sm.Unet(
@@ -54,11 +54,9 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
         logger.info("model built from scratch, backbone: %s", backbone)
 
     model.compile(
-        "Adam",
-        loss=sm.losses.bce_jaccard_loss,
-        metrics=[sm.metrics.iou_score],
+        "Adam", loss=sm.losses.bce_jaccard_loss, metrics=[sm.metrics.iou_score],
     )
-    
+
     warnings.resetwarnings()
     return model
 
@@ -170,7 +168,7 @@ class InteractiveTrainer:
         max_pool_length=30,
         min_object_size=100,
         scale_factor=1.0,
-        resume=True
+        resume=True,
     ):
         if InteractiveTrainer.__instance__ is None:
             InteractiveTrainer.__instance__ = self
@@ -194,11 +192,7 @@ class InteractiveTrainer:
         self.scale_factor = scale_factor
         self.queue = janus.Queue()
         self.sample_pool = load_sample_pool(
-            data_dir,
-            folder,
-            input_channels,
-            self.target_channels,
-            self.scale_factor,
+            data_dir, folder, input_channels, self.target_channels, self.scale_factor,
         )
         _img, _mask, _info = self.sample_pool[0]
         assert (
@@ -218,7 +212,7 @@ class InteractiveTrainer:
         self.reports = []
         self.training_config = {"save_freq": 200}
         self.start_training_loop()
-    
+
     def start_training_loop(self):
         self.loop.run_in_executor(
             None,
@@ -277,11 +271,17 @@ class InteractiveTrainer:
                     sync_q.task_done()
                 except janus.SyncQueueEmpty:
                     pass
-                
+
                 if training_enabled:
                     loss_metrics = self.train_once()
                     iteration += 1
-                    reports.append({"loss": loss_metrics[0], "IOU": loss_metrics[1], "iteration": iteration})
+                    reports.append(
+                        {
+                            "loss": loss_metrics[0],
+                            "IOU": loss_metrics[1],
+                            "iteration": iteration,
+                        }
+                    )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
                     # logger.info('trained for 1 iteration %s', reports[-1])
@@ -289,7 +289,7 @@ class InteractiveTrainer:
                     time.sleep(0.1)
             except Exception as e:
                 self._training_loop_running = False
-                logger.error('training loop exited with error: %s', e)
+                logger.error("training loop exited with error: %s", e)
                 break
         self._training_loop_running = False
 
