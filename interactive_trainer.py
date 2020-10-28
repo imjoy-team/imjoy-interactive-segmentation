@@ -148,7 +148,10 @@ class InteractiveTrainer:
     @staticmethod
     def get_instance(*args, **kwargs):
         """Static method to fetch the current instance."""
-        if not InteractiveTrainer.__instance__ or not InteractiveTrainer.__instance__._initialized:
+        if (
+            not InteractiveTrainer.__instance__
+            or not InteractiveTrainer.__instance__._initialized
+        ):
             return InteractiveTrainer(*args, **kwargs)
         return InteractiveTrainer.__instance__
 
