@@ -11,6 +11,7 @@ class ImJoyPlugin:
     async def setup(self):
         self.geojson_layer = None
         self.mask_layer = None
+        self.image_layer = None
 
     def start_training(self):
         self._trainer.start()
@@ -19,10 +20,12 @@ class ImJoyPlugin:
         self._trainer.stop()
 
     async def get_next_sample(self):
+        if self.image_layer:
+            self.viewer.remove_layer(self.image_layer)
         image, _, info = self._trainer.get_test_sample()
         self.current_sample_name = info["name"]
         self.current_image = image
-        await self.viewer.view_image(
+        self.image_layer = await self.viewer.view_image(
             (image * 255).astype("uint8"), type="itk-vtk", name=self.current_sample_name
         )
 

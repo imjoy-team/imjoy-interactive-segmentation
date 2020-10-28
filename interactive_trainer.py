@@ -148,8 +148,8 @@ class InteractiveTrainer:
     @staticmethod
     def get_instance(*args, **kwargs):
         """Static method to fetch the current instance."""
-        if not InteractiveTrainer.__instance__:
-            InteractiveTrainer(*args, **kwargs)
+        if not InteractiveTrainer.__instance__ or not InteractiveTrainer.__instance__._initialized:
+            return InteractiveTrainer(*args, **kwargs)
         return InteractiveTrainer.__instance__
 
     def __init__(
@@ -171,6 +171,7 @@ class InteractiveTrainer:
             raise Exception(
                 "You cannot create another InteractiveTrainer class, use InteractiveTrainer.get_instance() to retrieve the current instance."
             )
+        self._initialized = False
         self._training_loop_running = False
         self.training_enabled = False
         self.data_dir = data_dir
@@ -233,6 +234,7 @@ class InteractiveTrainer:
         self.loop = asyncio.get_running_loop()
         self.training_config = {"save_freq": 200}
         self.start_training_loop()
+        self._initialized = True
 
     def start_training_loop(self):
         self.loop.run_in_executor(
