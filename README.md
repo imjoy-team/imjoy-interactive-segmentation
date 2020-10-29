@@ -24,10 +24,13 @@ python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "
 
 ## Usage
 
-Start a jupyter notebook with ImJoy
+Start a the jupyter notebook server with ImJoy
 ```bash
 imjoy --jupyter
 ```
+
+Importantly, create a notebook file with kernel spec named "ImJoy Interactive ML".
+
 
 You can download our example dataset to get started:
 ```bash

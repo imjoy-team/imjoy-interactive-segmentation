@@ -23,10 +23,19 @@ class ImJoyPlugin:
     def stop_training(self):
         self._trainer.stop()
 
-    async def get_next_sample(self):
+    async def get_next_sample(self, sample_name=None, folder="test"):
         if self.image_layer:
             self.viewer.remove_layer(self.image_layer)
-        image, _, info = self._trainer.get_test_sample()
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        if folder == "test":
+            image, _, info = self._trainer.get_test_sample(sample_name)
+        elif folder == "train":
+            image, _, info = self._trainer.get_training_sample(sample_name)
+        else:
+            raise Exception("unsupported folder: " + folder)
         self.current_sample_name = info["name"]
         self.current_image = image
         self.image_layer = await self.viewer.view_image(
@@ -142,9 +151,45 @@ class ImJoyPlugin:
             self.current_sample_name, self.current_annotation, target_folder="valid"
         )
 
+    def get_sample_list(self, group):
+        data_dir = os.path.join(self._trainer.data_dir, group)
+        samples = []
+        for sf in os.listdir(data_dir):
+            sfd = os.path.join(data_dir, sf)
+            if os.path.isdir(sfd) and not sf.startswith("."):
+                samples.append({"title": sf, "isLeaf": True, "data": {"group": group}})
+        return samples
+
     async def run(self, ctx):
         self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
         self.viewer.set_loader(True)
+
+        async def node_dbclick_callback(node):
+            await self.get_next_sample(node["title"], node["data"]["group"])
+
+        tree = await self.viewer.add_widget(
+            {
+                "_rintf": True,
+                "type": "tree",
+                "name": "Samples",
+                "node_dbclick_callback": node_dbclick_callback,
+                "nodes": [
+                    {
+                        "title": "test",
+                        "isLeaf": False,
+                        "children": self.get_sample_list("test"),
+                        "isExpanded": True,
+                    },
+                    {
+                        "title": "train",
+                        "isLeaf": False,
+                        "children": self.get_sample_list("train"),
+                        "isExpanded": False,
+                    },
+                ],
+            }
+        )
+
         await self.viewer.add_widget(
             {
                 "_rintf": True,
@@ -189,6 +234,7 @@ class ImJoyPlugin:
                 ],
             }
         )
+
         losses = self._trainer.reports or []
         chart = await self.viewer.add_widget(
             {
@@ -213,15 +259,27 @@ class ImJoyPlugin:
         async def refresh():
             if len(self._trainer.reports) > 0:
                 v = self._trainer.reports[-1]
+                error = self._trainer.get_error()
                 if v["iteration"] != self.last_iteration:
                     title = f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
                     if not self._trainer.training_enabled:
                         title += " (stopped)"
+                    else:
+                        if error:
+                            title += str(error)
                     await chart.set_title(title)
                     await chart.append("loss", v)
                     self.last_iteration = v["iteration"]
                 elif self._trainer.training_enabled:
-                    await chart.set_title("Starting...")
+                    if error:
+                        await chart.set_title(f"Error: {error}")
+                    else:
+                        await chart.set_title("Starting...")
+                else:
+                    if error:
+                        await chart.set_title(f"Error: {error}")
+                        await api.error(f"Error: {error}")
+                        # await api.showMessage(f"Error: {error}")
             self.viewer.set_timeout(refresh, 2000)
 
         self.viewer.set_timeout(refresh, 2000)
