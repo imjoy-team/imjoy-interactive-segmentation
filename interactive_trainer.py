@@ -4,6 +4,7 @@ import shutil
 import logging
 import json
 import time
+import traceback
 import warnings
 import tensorflow as tf
 import segmentation_models as sm
@@ -21,6 +22,9 @@ import asyncio
 import janus
 import json
 
+from segmentation_models.base import Loss
+from segmentation_models.base import functional as F
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -31,6 +35,61 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("interactive-trainer." + __name__)
+
+SMOOTH = 1e-5
+
+
+class BCEJaccardLoss(Loss):
+    def __init__(
+        self,
+        beta=1,
+        class_weights=None,
+        class_indexes=None,
+        per_image=False,
+        smooth=SMOOTH,
+    ):
+        super().__init__(name="bce_jaccard_loss")
+        self.class_weights = class_weights if class_weights is not None else 1
+        self.class_indexes = class_indexes
+        self.per_image = per_image
+        self.smooth = smooth
+        self.beta = beta
+
+    def dice_loss(self, gt, pr):
+        return 1 - F.f_score(
+            gt,
+            pr,
+            beta=self.beta,
+            class_weights=self.class_weights,
+            class_indexes=self.class_indexes,
+            smooth=self.smooth,
+            per_image=self.per_image,
+            threshold=None,
+            **self.submodules,
+        )
+
+    def jacacard_loss(self, gt, pr):
+        return 1 - F.iou_score(
+            gt,
+            pr,
+            class_weights=self.class_weights,
+            class_indexes=self.class_indexes,
+            smooth=self.smooth,
+            per_image=self.per_image,
+            threshold=None,
+            **self.submodules,
+        )
+
+    def __call__(self, gt, pr):
+        blue channel
+        ce_body = F.binary_crossentropy(gt[:, :, :, 2:3], pr[:, :, :, 2:3], **self.submodules)
+        # green channel
+        ce_border = F.binary_crossentropy(gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules)
+        ce = ce_body + ce_border
+        dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
+        dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
+        loss = 0.6 * ce + 0.2 * dice_body + 0.2 * dice_border
+        return loss
 
 
 def load_unet_model(model_path=None, backbone="mobilenetv2"):
@@ -55,11 +114,11 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
         logger.info("model built from scratch, backbone: %s", backbone)
 
     model.compile(
-        "Adam", loss=sm.losses.bce_jaccard_loss, metrics=[sm.metrics.iou_score],
+        "Adam", loss=BCEJaccardLoss(),
     )
 
     warnings.resetwarnings()
-    return model
+    return model, preprocess_input
 
 
 def get_augmentor(target_size=128):
@@ -67,8 +126,8 @@ def get_augmentor(target_size=128):
     return A.Compose(
         [
             A.RandomCrop(crop_size, crop_size),
-            A.VerticalFlip(),
-            A.OneOf([A.RandomBrightnessContrast(p=0.8), A.RandomGamma(p=0.8),], p=1,),
+            A.VerticalFlip(p=0.5),
+            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
         ]
@@ -174,6 +233,7 @@ class InteractiveTrainer:
             raise Exception(
                 "You cannot create another InteractiveTrainer class, use InteractiveTrainer.get_instance() to retrieve the current instance."
             )
+        self._training_error = None
         self._initialized = False
         self._training_loop_running = False
         self.training_enabled = False
@@ -192,7 +252,7 @@ class InteractiveTrainer:
                 raise Exception(
                     f"checkpoint file not found: {checkpoint}, if you want to start from scratch, please set resume to False."
                 )
-            else:
+            elif not os.path.exists(checkpoint):
                 checkpoint = None
             report_path = os.path.join(self.model_dir, f"reports_{label}.json")
             if os.path.exists(report_path):
@@ -200,7 +260,8 @@ class InteractiveTrainer:
                     self.reports = json.load(f)
         else:
             checkpoint = None
-        self.model = load_unet_model(checkpoint)
+        self.model, self.preprocess_input = load_unet_model(checkpoint)
+        self.class_weight = {0: 0.0, 1: 100.0, 2: 1.0}
         self.object_name = object_name
         self.mask_type = mask_type
         self.input_channels = input_channels
@@ -239,6 +300,9 @@ class InteractiveTrainer:
         self.start_training_loop()
         self._initialized = True
 
+    def get_error(self):
+        return self._training_error
+
     def start_training_loop(self):
         self.loop.run_in_executor(
             None,
@@ -254,7 +318,7 @@ class InteractiveTrainer:
         for i in range(self.batch_size):
             x, y, info = self.get_training_sample()
             augmented = self.augmentor(image=x, mask=y)
-            batchX += [augmented["image"]]
+            batchX += [self.preprocess_input(augmented["image"])]
             batchY += [augmented["mask"]]
         loss_metrics = self.model.train_on_batch(
             np.asarray(batchX, dtype="float32"), np.asarray(batchY, dtype="float32")
@@ -284,6 +348,7 @@ class InteractiveTrainer:
         else:
             iteration = 0
         self._training_loop_running = True
+        self._training_error = None
         while True:
             try:
                 try:
@@ -305,13 +370,11 @@ class InteractiveTrainer:
 
                 if self.training_enabled:
                     loss_metrics = self.train_once()
+                    if not isinstance(loss_metrics, (list, tuple)):
+                        loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {
-                            "loss": loss_metrics[0],
-                            "IOU": loss_metrics[1],
-                            "iteration": iteration,
-                        }
+                        {"loss": loss_metrics[0], "iteration": iteration,}
                     )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
@@ -319,6 +382,8 @@ class InteractiveTrainer:
                 else:
                     time.sleep(0.1)
             except Exception as e:
+                self.training_enabled = False
+                self._training_error = traceback.format_exc()
                 self._training_loop_running = False
                 logger.error("training loop exited with error: %s", e)
                 break
@@ -387,6 +452,10 @@ class InteractiveTrainer:
 
     def predict(self, image):
         mask = self.model.predict(np.expand_dims(image, axis=0))
+        mask[0, :, :, 0] = 0
+        imageio.imwrite(
+            "prediction.png", np.clip(mask[0, :, :, :] * 255, 0, 255).astype("uint8")
+        )
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
         return geojson, mask[0, :, :, :]

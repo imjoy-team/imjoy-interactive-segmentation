@@ -22,6 +22,10 @@ class ImJoyPlugin:
     async def get_next_sample(self):
         if self.image_layer:
             self.viewer.remove_layer(self.image_layer)
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
         image, _, info = self._trainer.get_test_sample()
         self.current_sample_name = info["name"]
         self.current_image = image
@@ -68,7 +72,8 @@ class ImJoyPlugin:
         )
 
     async def run(self, ctx):
-        self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
+        self.viewer = await api.createWindow(
+            src="https://kaibu.org/#/app")
         self.viewer.set_loader(True)
         await self.viewer.add_widget(
             {
@@ -105,6 +110,25 @@ class ImJoyPlugin:
                 ],
             }
         )
+
+        async def node_dbclick_callback(node):
+            api.alert('file clicked: ' + str(node))
+
+        tree = await self.viewer.add_widget(
+            {
+                "_rintf": True,
+                "type": "tree",
+                "name": "Files",
+                "node_dbclick_callback": node_dbclick_callback,
+                "nodes": [{
+                    "title": "Item2",
+                    "isLeaf": True,
+                    "data": {"visible": False},
+                    "isSelected": False,
+                }],
+            }
+        )
+
         losses = self._trainer.reports or []
         chart = await self.viewer.add_widget(
             {
@@ -129,15 +153,27 @@ class ImJoyPlugin:
         async def refresh():
             if len(self._trainer.reports) > 0:
                 v = self._trainer.reports[-1]
+                error = self._trainer.get_error()
                 if v["iteration"] != self.last_iteration:
                     title = f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
                     if not self._trainer.training_enabled:
                         title += " (stopped)"
+                    else:
+                        if error:
+                            title += str(error)
                     await chart.set_title(title)
                     await chart.append("loss", v)
                     self.last_iteration = v["iteration"]
                 elif self._trainer.training_enabled:
-                    await chart.set_title("Starting...")
+                    if error:
+                        await chart.set_title(f"Error: {error}")
+                    else:
+                        await chart.set_title("Starting...")
+                else:
+                    if error:
+                        await chart.set_title(f"Error: {error}")
+                        await api.error(f"Error: {error}")
+                        # await api.showMessage(f"Error: {error}")
             self.viewer.set_timeout(refresh, 2000)
 
         self.viewer.set_timeout(refresh, 2000)
