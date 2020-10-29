@@ -218,7 +218,7 @@ class ImJoyPlugin:
                     },
                     {   
                         "type": "button",
-                        "label": "FetchMask",
+                        "label": "Fetch the Mask",
                         "callback": self.fetch_mask,
                     },
                     {
