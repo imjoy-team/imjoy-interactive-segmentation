@@ -462,9 +462,6 @@ class InteractiveTrainer:
     def predict(self, image):
         mask = self.model.predict(np.expand_dims(image, axis=0))
         mask[0, :, :, 0] = 0
-        imageio.imwrite(
-            "prediction.png", np.clip(mask[0, :, :, :] * 255, 0, 255).astype("uint8")
-        )
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
         return geojson, mask[0, :, :, :]
