@@ -19,14 +19,19 @@ class ImJoyPlugin:
     def stop_training(self):
         self._trainer.stop()
 
-    async def get_next_sample(self):
+    async def get_next_sample(self, sample_name=None, folder="test"):
         if self.image_layer:
             self.viewer.remove_layer(self.image_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        image, _, info = self._trainer.get_test_sample()
+        if folder == "test":
+            image, _, info = self._trainer.get_test_sample(sample_name)
+        elif folder == "train":
+            image, _, info = self._trainer.get_training_sample(sample_name)
+        else:
+            raise Exception("unsupported folder: " + folder)
         self.current_sample_name = info["name"]
         self.current_image = image
         self.image_layer = await self.viewer.view_image(
@@ -71,10 +76,45 @@ class ImJoyPlugin:
             self.current_sample_name, self.current_annotation, target_folder="valid"
         )
 
+    def get_sample_list(self, group):
+        data_dir = os.path.join(self._trainer.data_dir, group)
+        samples = []
+        for sf in os.listdir(data_dir):
+            sfd = os.path.join(data_dir, sf)
+            if os.path.isdir(sfd) and not sf.startswith("."):
+                samples.append({"title": sf, "isLeaf": True, "data": {"group": group}})
+        return samples
+
     async def run(self, ctx):
-        self.viewer = await api.createWindow(
-            src="https://kaibu.org/#/app")
+        self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
         self.viewer.set_loader(True)
+
+        async def node_dbclick_callback(node):
+            await self.get_next_sample(node["title"], node["data"]["group"])
+
+        tree = await self.viewer.add_widget(
+            {
+                "_rintf": True,
+                "type": "tree",
+                "name": "Samples",
+                "node_dbclick_callback": node_dbclick_callback,
+                "nodes": [
+                    {
+                        "title": "test",
+                        "isLeaf": False,
+                        "children": self.get_sample_list("test"),
+                        "isExpanded": True,
+                    },
+                    {
+                        "title": "train",
+                        "isLeaf": False,
+                        "children": self.get_sample_list("train"),
+                        "isExpanded": False,
+                    },
+                ],
+            }
+        )
+
         await self.viewer.add_widget(
             {
                 "_rintf": True,
@@ -108,24 +148,6 @@ class ImJoyPlugin:
                         "callback": self.send_for_evaluation,
                     },
                 ],
-            }
-        )
-
-        async def node_dbclick_callback(node):
-            api.alert('file clicked: ' + str(node))
-
-        tree = await self.viewer.add_widget(
-            {
-                "_rintf": True,
-                "type": "tree",
-                "name": "Files",
-                "node_dbclick_callback": node_dbclick_callback,
-                "nodes": [{
-                    "title": "Item2",
-                    "isLeaf": True,
-                    "data": {"visible": False},
-                    "isSelected": False,
-                }],
             }
         )
 

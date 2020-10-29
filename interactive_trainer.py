@@ -81,10 +81,14 @@ class BCEJaccardLoss(Loss):
         )
 
     def __call__(self, gt, pr):
-        blue channel
-        ce_body = F.binary_crossentropy(gt[:, :, :, 2:3], pr[:, :, :, 2:3], **self.submodules)
+        # blue channel
+        ce_body = F.binary_crossentropy(
+            gt[:, :, :, 2:3], pr[:, :, :, 2:3], **self.submodules
+        )
         # green channel
-        ce_border = F.binary_crossentropy(gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules)
+        ce_border = F.binary_crossentropy(
+            gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules
+        )
         ce = ce_body + ce_border
         dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
         dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
@@ -113,9 +117,7 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
         )
         logger.info("model built from scratch, backbone: %s", backbone)
 
-    model.compile(
-        "Adam", loss=BCEJaccardLoss(),
-    )
+    model.compile("Adam", loss=sm.losses.bce_jaccard_loss)  # BCEJaccardLoss(),
 
     warnings.resetwarnings()
     return model, preprocess_input
@@ -316,7 +318,7 @@ class InteractiveTrainer:
         batchX = []
         batchY = []
         for i in range(self.batch_size):
-            x, y, info = self.get_training_sample()
+            x, y, info = self.get_random_training_sample()
             augmented = self.augmentor(image=x, mask=y)
             batchX += [self.preprocess_input(augmented["image"])]
             batchY += [augmented["mask"]]
@@ -408,20 +410,27 @@ class InteractiveTrainer:
     def get_reports(self):
         return self.reports
 
-    def get_training_sample(self):
+    def get_random_training_sample(self):
         return random.choice(self.sample_pool)
 
-    def get_test_sample(self):
-        samples = [
-            name
-            for name in os.listdir(os.path.join(self.data_dir, "test"))
-            if not name.startswith(".")
-        ]
-        sample_name = random.choice(samples)
-        img = self.load_input_image("test", sample_name)
+    def get_training_sample(self, sample_name=None):
+        return self.get_sample("train", sample_name)
+
+    def get_test_sample(self, sample_name=None):
+        return self.get_sample("test", sample_name)
+
+    def get_sample(self, folder, sample_name=None):
+        if sample_name is None:
+            samples = [
+                name
+                for name in os.listdir(os.path.join(self.data_dir, folder))
+                if not name.startswith(".")
+            ]
+            sample_name = random.choice(samples)
+        img = self.load_input_image(folder, sample_name)
         info = {
             "name": sample_name,
-            "path": os.path.join(self.data_dir, "test", sample_name),
+            "path": os.path.join(self.data_dir, folder, sample_name),
         }
         return img, None, info
 
