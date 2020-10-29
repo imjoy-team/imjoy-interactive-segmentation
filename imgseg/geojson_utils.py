@@ -53,7 +53,6 @@ def gen_mask_from_geojson(
     masks_to_create_value=["filled", "edge", "distance", "weigthed", "border_mask"],
     img_size=None,
     infer=False,
-    border_detection_threshold=6,
 ):
     masks_to_create = {}
 
@@ -66,9 +65,6 @@ def gen_mask_from_geojson(
 
     weightedEdgeMasks = annotationUtils.WeightedEdgeMaskGenerator(sigma=8, w0=10)
     distMapMasks = annotationUtils.DistanceMapGenerator(truncate_distance=None)
-    borderMasks = annotationUtils.BorderMaskGenerator(
-        border_detection_threshold=border_detection_threshold
-    )
 
     # %% Loop over all files
     for i, file_proc in enumerate(files_proc):
@@ -178,6 +174,10 @@ def gen_mask_from_geojson(
             # border_mask
             if "border_mask" in masks_to_create[annot_type]:
                 print(" .... creating border masks .....")
+                border_detection_threshold = max(round(1.33 * image_size[0]/512 + 0.66), 1)
+                borderMasks = annotationUtils.BorderMaskGenerator(
+                    border_detection_threshold=border_detection_threshold
+                )
                 mask_dict = borderMasks.generate(annot_dict, mask_dict)
 
                 # Save
