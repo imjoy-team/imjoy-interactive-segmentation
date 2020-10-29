@@ -114,6 +114,24 @@ class ImJoyPlugin:
 
     async def send_for_training(self):
         self.current_annotation = await self.geojson_layer.get_features()
+        img = imread(os.path.join(self._trainer.data_dir, "test", self.current_sample_name, self._trainer.input_channels[0]))
+        size = img.shape[1]
+        for i, feature in enumerate(self.current_annotation['features']):
+            coordinates = feature['geometry']['coordinates'][0]
+            new_coordinates = []
+            for j, coordinate in enumerate(coordinates):
+                x, y = coordinate
+                if x < 0:
+                    x = 0
+                if x > size:
+                    x = size
+                if y < 0:
+                    y = 0
+                if y > size:
+                    y = size
+                y = size - y        
+                new_coordinates.append([x, y])
+            self.current_annotation['features'][i]['geometry']['coordinates'][0] = new_coordinates
         self._trainer.push_sample(
             self.current_sample_name, self.current_annotation, target_folder="train"
         )
