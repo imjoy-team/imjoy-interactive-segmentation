@@ -41,8 +41,8 @@ def simplify_annotations(json_file_path, simplify_tol=0.2):
     return json_data
 
 
-def rewrite_simplified_json(json_file_path):
-    json_data = simplify_annotations(json_file_path, 0.2)
+def rewrite_simplified_json(json_file_path, simplify_tol=0.2):
+    json_data = simplify_annotations(json_file_path, simplify_tol)
     write_to_json(json_data, json_file_path)
     #gen_mask_from_geojson(['./test/test.json'], masks_to_create_value='border_mask')
     #gen_mask_from_geojson(['./annotation.json'], masks_to_create_value='border_mask')
@@ -53,4 +53,4 @@ if __name__ == '__main__':
     for root, _, files in os.walk(data_dir):
         if 'annotation.json' in files:
             json_file_path = os.path.join(root, 'annotation.json')
-            rewrite_simplified_json(json_file_path)
+            rewrite_simplified_json(json_file_path, simplify_tol=0.2)
