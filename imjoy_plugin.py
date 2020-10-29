@@ -1,5 +1,9 @@
 import os
+import io
 import time
+import numpy as np
+import json
+from imageio import imread
 from imjoy import api
 from interactive_trainer import InteractiveTrainer
 
@@ -64,8 +68,79 @@ class ImJoyPlugin:
         else:
             api.showMessage("No object detected.")
 
+    async def fetch_mask(self):
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        with io.open(
+            os.path.join(self._trainer.data_dir, "test", self.current_sample_name, "annotation.json"),
+            "r",
+            encoding="utf-8-sig",
+        ) as myfile:
+            polygons = json.load(myfile)
+        size = polygons['bbox'][3]
+        for i, feature in enumerate(polygons['features']):
+            coordinates = feature['geometry']['coordinates'][0]
+            new_coordinates = []
+            for j, coordinate in enumerate(coordinates):
+                x, y = coordinate
+                if x < 0:
+                    x = 0
+                if x > size:
+                    x = size
+                if y < 0:
+                    y = 0
+                if y > size:
+                    y = size
+                y = size - y        
+                new_coordinates.append([x, y])
+            polygons['features'][i]['geometry']['coordinates'][0] = new_coordinates
+
+        polygons = list(map(lambda feature: np.array(feature['geometry']['coordinates'][0], dtype=np.uint16), polygons['features']))
+        mask_file_name = self._trainer.object_name + '_' + self._trainer.mask_type + '.png'
+        mask = imread(os.path.join(self._trainer.data_dir, "test", self.current_sample_name, mask_file_name))
+
+        self.current_annotation = polygons
+        if len(polygons) > 0:
+            self.mask_layer = await self.viewer.view_image(
+                mask,
+                type="itk-vtk",
+                name=self._trainer.object_name + "_mask",
+                opacity=0.5,
+            )
+            if len(polygons) < 2000:
+                self.geojson_layer = await self.viewer.add_shapes(
+                    polygons,
+                    shape_type="polygon",
+                    edge_color="red",
+                    name=self._trainer.object_name,
+                )
+            else:
+                api.showMessage(f"Too many object detected ({len(polygons)}).")
+        else:
+            api.showMessage("No object detected.")
+
     async def send_for_training(self):
         self.current_annotation = await self.geojson_layer.get_features()
+        img = imread(os.path.join(self._trainer.data_dir, "test", self.current_sample_name, self._trainer.input_channels[0]))
+        size = img.shape[1]
+        for i, feature in enumerate(self.current_annotation['features']):
+            coordinates = feature['geometry']['coordinates'][0]
+            new_coordinates = []
+            for j, coordinate in enumerate(coordinates):
+                x, y = coordinate
+                if x < 0:
+                    x = 0
+                if x > size:
+                    x = size
+                if y < 0:
+                    y = 0
+                if y > size:
+                    y = size
+                y = size - y        
+                new_coordinates.append([x, y])
+            self.current_annotation['features'][i]['geometry']['coordinates'][0] = new_coordinates
         self._trainer.push_sample(
             self.current_sample_name, self.current_annotation, target_folder="train"
         )
@@ -136,7 +211,16 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {"type": "button", "label": "Predict", "callback": self.predict,},
+                    {   
+                        "type": "button",
+                        "label": "Predict",
+                        "callback": self.predict,
+                    },
+                    {   
+                        "type": "button",
+                        "label": "Fetch the Mask",
+                        "callback": self.fetch_mask,
+                    },
                     {
                         "type": "button",
                         "label": "Send for Training",
