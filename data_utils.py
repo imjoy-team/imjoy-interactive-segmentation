@@ -3,7 +3,7 @@ from geojson import Polygon as geojson_polygon
 from shapely.geometry import Polygon as shapely_polygon
 from geojson import Feature, FeatureCollection, dump
 from skimage import measure, morphology
-
+import matplotlib.pyplot as plt
 
 def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
     """
@@ -70,3 +70,29 @@ def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
         )
     )
     return features  # feature_collection
+
+def visualize(images, masks, original_image=None, original_mask=None):
+    fontsize = 18
+    assert len(images) == len(masks)
+    if original_image is None and original_mask is None:
+        f, ax = plt.subplots(2, len(images), figsize=(25, 10))
+        for i in range(len(images)):
+          ax[0,i].imshow(images[i])
+          ax[1,i].imshow(masks[i])
+        plt.savefig('./data/augmented_grid.png')
+    else:
+        f, ax = plt.subplots(2, len(images)+1, figsize=(25,10))
+        ax[0, 0].imshow(original_image)
+        ax[0, 0].set_title('Original image', fontsize=fontsize)
+          
+        ax[1, 0].imshow(original_mask)
+        ax[1, 0].set_title('Original mask', fontsize=fontsize)
+        
+        for i in range(len(images)):  
+          ax[0, i+1].imshow(images[i])
+          ax[0, i+1].set_title('Augmented image', fontsize=fontsize)
+          
+          ax[1, i+1].imshow(masks[i])
+          ax[1, i+1].set_title('Augmented mask', fontsize=fontsize)
+        plt.savefig('./data/augmented_grid.png')
+    return f
