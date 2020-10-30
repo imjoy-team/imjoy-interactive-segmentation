@@ -174,7 +174,9 @@ def gen_mask_from_geojson(
             # border_mask
             if "border_mask" in masks_to_create[annot_type]:
                 print(" .... creating border masks .....")
-                border_detection_threshold = max(round(1.33 * image_size[0]/512 + 0.66), 1)
+                border_detection_threshold = max(
+                    round(1.33 * image_size[0] / 512 + 0.66), 1
+                )
                 borderMasks = annotationUtils.BorderMaskGenerator(
                     border_detection_threshold=border_detection_threshold
                 )

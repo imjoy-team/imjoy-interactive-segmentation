@@ -92,16 +92,23 @@ class BCEJaccardLoss(Loss):
             gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules
         )
         ce = ce_body + ce_border
-        dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
-        dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
-        loss = 0.6 * ce + 0.2 * dice_body + 0.2 * dice_border
-        return loss
+        #         dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
+        #         dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
+        #         loss = 0.6 * ce + 0.2 * dice_body + 0.2 * dice_border
+        return ce
+
+
+def zero_mean_unit_var(x):
+    xm = x.mean()
+    return (x - x.mean()) / x.std()
 
 
 def load_unet_model(model_path=None, backbone="mobilenetv2"):
     # disable warnings temporary
     warnings.filterwarnings("ignore")
-    preprocess_input = sm.get_preprocessing(backbone)
+
+    # preprocess_input = sm.get_preprocessing(backbone)
+
     if model_path:
         logger.info("model loaded from %s", model_path)
         model = tf.keras.models.load_model(model_path, compile=False)
@@ -119,10 +126,10 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
         )
         logger.info("model built from scratch, backbone: %s", backbone)
 
-    model.compile("Adam", loss=sm.losses.bce_jaccard_loss)  # BCEJaccardLoss(),
+    model.compile("Adam", loss=sm.losses.bce_jaccard_loss)  # BCEJaccardLoss()
 
     warnings.resetwarnings()
-    return model, preprocess_input
+    return model, zero_mean_unit_var
 
 
 def get_augmentor(target_size=128):
@@ -131,7 +138,13 @@ def get_augmentor(target_size=128):
         [
             A.RandomCrop(crop_size, crop_size),
             A.VerticalFlip(p=0.5),
-            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(p=0.5),
+                    A.RandomGamma(p=0.5),
+                ],
+                p=0.1,
+            ),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
         ]
@@ -273,7 +286,11 @@ class InteractiveTrainer:
         self.scale_factor = scale_factor
         self.queue = janus.Queue()
         self.sample_pool = load_sample_pool(
-            data_dir, folder, input_channels, self.target_channels, self.scale_factor,
+            data_dir,
+            folder,
+            input_channels,
+            self.target_channels,
+            self.scale_factor,
         )
         _img, _mask, _info = self.sample_pool[0]
         assert (
@@ -378,7 +395,10 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {"loss": loss_metrics[0], "iteration": iteration,}
+                        {
+                            "loss": loss_metrics[0],
+                            "iteration": iteration,
+                        }
                     )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
@@ -462,7 +482,7 @@ class InteractiveTrainer:
                 self.sample_pool.pop(0)
 
     def predict(self, image):
-        mask = self.model.predict(np.expand_dims(image, axis=0))
+        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)

@@ -39,7 +39,9 @@ class ImJoyPlugin:
         self.current_sample_info = info
         self.current_image = image
         self.image_layer = await self.viewer.view_image(
-            (image * 255).astype("uint8"), type="itk-vtk", name=self.current_sample_info['name']
+            (image * 255).astype("uint8"),
+            type="itk-vtk",
+            name=self.current_sample_info["name"],
         )
 
     async def get_augmentations(self):
@@ -49,7 +51,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.geojson_layer)
         figure = self._trainer.plot_augmentations()
         self.image_layer = await self.viewer.view_image(
-            figure, type="itk-vtk", name='Augmented grid'
+            figure, type="itk-vtk", name="Augmented grid"
         )
 
     async def predict(self):
@@ -58,17 +60,17 @@ class ImJoyPlugin:
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         polygons, mask = self._trainer.predict(self.current_image)
-        imwrite(
-            os.path.join(self.current_sample_info['path'], "prediction.png"), np.clip(mask * 255, 0, 255).astype("uint8")
-        )
+        mask = np.clip(mask * 255, 0, 255).astype("uint8")
+        imwrite(os.path.join(self.current_sample_info["path"], "prediction.png"), mask)
         self.current_annotation = polygons
+
+        self.mask_layer = await self.viewer.view_image(
+            mask,
+            type="itk-vtk",
+            name=self._trainer.object_name + "_mask",
+            opacity=0.5,
+        )
         if len(polygons) > 0:
-            self.mask_layer = await self.viewer.view_image(
-                mask,
-                type="itk-vtk",
-                name=self._trainer.object_name + "_mask",
-                opacity=0.5,
-            )
             if len(polygons) < 2000:
                 self.geojson_layer = await self.viewer.add_shapes(
                     polygons,
@@ -87,14 +89,19 @@ class ImJoyPlugin:
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         with io.open(
-            os.path.join(self._trainer.data_dir, "test", self.current_sample_info['name'], "annotation.json"),
+            os.path.join(
+                self._trainer.data_dir,
+                "test",
+                self.current_sample_info["name"],
+                "annotation.json",
+            ),
             "r",
             encoding="utf-8-sig",
         ) as myfile:
             polygons = json.load(myfile)
-        size = polygons['bbox'][3]
-        for i, feature in enumerate(polygons['features']):
-            coordinates = feature['geometry']['coordinates'][0]
+        size = polygons["bbox"][3]
+        for i, feature in enumerate(polygons["features"]):
+            coordinates = feature["geometry"]["coordinates"][0]
             new_coordinates = []
             for j, coordinate in enumerate(coordinates):
                 x, y = coordinate
@@ -106,13 +113,29 @@ class ImJoyPlugin:
                     y = 0
                 if y > size:
                     y = size
-                y = size - y        
+                y = size - y
                 new_coordinates.append([x, y])
-            polygons['features'][i]['geometry']['coordinates'][0] = new_coordinates
+            polygons["features"][i]["geometry"]["coordinates"][0] = new_coordinates
 
-        polygons = list(map(lambda feature: np.array(feature['geometry']['coordinates'][0], dtype=np.uint16), polygons['features']))
-        mask_file_name = self._trainer.object_name + '_' + self._trainer.mask_type + '.png'
-        mask = imread(os.path.join(self._trainer.data_dir, "test", self.current_sample_info['name'], mask_file_name))
+        polygons = list(
+            map(
+                lambda feature: np.array(
+                    feature["geometry"]["coordinates"][0], dtype=np.uint16
+                ),
+                polygons["features"],
+            )
+        )
+        mask_file_name = (
+            self._trainer.object_name + "_" + self._trainer.mask_type + ".png"
+        )
+        mask = imread(
+            os.path.join(
+                self._trainer.data_dir,
+                "test",
+                self.current_sample_info["name"],
+                mask_file_name,
+            )
+        )
 
         self.current_annotation = polygons
         if len(polygons) > 0:
@@ -136,10 +159,17 @@ class ImJoyPlugin:
 
     async def send_for_training(self):
         self.current_annotation = await self.geojson_layer.get_features()
-        img = imread(os.path.join(self._trainer.data_dir, "test", self.current_sample_info['name'], self._trainer.input_channels[0]))
+        img = imread(
+            os.path.join(
+                self._trainer.data_dir,
+                "test",
+                self.current_sample_info["name"],
+                self._trainer.input_channels[0],
+            )
+        )
         size = img.shape[1]
-        for i, feature in enumerate(self.current_annotation['features']):
-            coordinates = feature['geometry']['coordinates'][0]
+        for i, feature in enumerate(self.current_annotation["features"]):
+            coordinates = feature["geometry"]["coordinates"][0]
             new_coordinates = []
             for j, coordinate in enumerate(coordinates):
                 x, y = coordinate
@@ -151,17 +181,24 @@ class ImJoyPlugin:
                     y = 0
                 if y > size:
                     y = size
-                y = size - y        
+                y = size - y
                 new_coordinates.append([x, y])
-            self.current_annotation['features'][i]['geometry']['coordinates'][0] = new_coordinates
+            self.current_annotation["features"][i]["geometry"]["coordinates"][
+                0
+            ] = new_coordinates
         self._trainer.push_sample(
-            self.current_sample_info['name'], self.current_annotation, target_folder="train"
+            self.current_sample_info["name"],
+            self.current_annotation,
+            target_folder="train",
         )
+        api.showMessage("image moved to the training set")
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
         self._trainer.push_sample(
-            self.current_sample_info['name'], self.current_annotation, target_folder="valid"
+            self.current_sample_info["name"],
+            self.current_annotation,
+            target_folder="valid",
         )
 
     def get_sample_list(self, group):
@@ -191,7 +228,7 @@ class ImJoyPlugin:
                         "title": "test",
                         "isLeaf": False,
                         "children": self.get_sample_list("test"),
-                        "isExpanded": True,
+                        "isExpanded": False,
                     },
                     {
                         "title": "train",
@@ -224,12 +261,12 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {   
+                    {
                         "type": "button",
                         "label": "Predict",
                         "callback": self.predict,
                     },
-                    {   
+                    {
                         "type": "button",
                         "label": "Fetch the Mask",
                         "callback": self.fetch_mask,

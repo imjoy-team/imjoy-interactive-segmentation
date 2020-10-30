@@ -7,6 +7,7 @@ from geojson import Feature, FeatureCollection, dump
 from skimage import measure, morphology
 import matplotlib.pyplot as plt
 
+
 def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
     """
     Args:
@@ -73,6 +74,7 @@ def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
     )
     return features  # feature_collection
 
+
 def fig2img(fig):
     """Convert a Matplotlib figure to a PIL Image and return it"""
     buf = io.BytesIO()
@@ -81,32 +83,35 @@ def fig2img(fig):
     img = np.flipud(imageio.imread(buf))
     return img
 
+
 def plot_images(images, masks, original_image=None, original_mask=None):
     fontsize = 18
-    params = {"ytick.color" : "gray",
-          "xtick.color" : "gray",
-          "axes.labelcolor" : "gray",
-          "axes.edgecolor" : "gray"}
+    params = {
+        "ytick.color": "gray",
+        "xtick.color": "gray",
+        "axes.labelcolor": "gray",
+        "axes.edgecolor": "gray",
+    }
     plt.rcParams.update(params)
 
     assert len(images) == len(masks)
     if original_image is None and original_mask is None:
-        f, ax = plt.subplots(2, len(images), figsize=(len(images)*10, 10))
+        f, ax = plt.subplots(2, len(images), figsize=(len(images) * 6, 10))
         for i in range(len(images)):
-            ax[0,i].imshow(images[i])
-            ax[1,i].imshow(masks[i])
+            ax[0, i].imshow(images[i])
+            ax[1, i].imshow(masks[i])
     else:
-        f, ax = plt.subplots(2, len(images)+1, figsize=(len(images)*10,10))
+        f, ax = plt.subplots(2, len(images) + 1, figsize=(len(images) * 6, 10))
         ax[0, 0].imshow(original_image)
-        ax[0, 0].set_title('Original image', fontsize=fontsize, color="gray")
-          
-        ax[1, 0].imshow(original_mask)
-        ax[1, 0].set_title('Original mask', fontsize=fontsize, color="gray")
-        
-        for i in range(len(images)):  
-            ax[0, i+1].imshow(images[i])
-            ax[0, i+1].set_title('Augmented image', fontsize=fontsize, color="gray")
+        ax[0, 0].set_title("Original image", fontsize=fontsize, color="gray")
 
-            ax[1, i+1].imshow(masks[i])
-            ax[1, i+1].set_title('Augmented mask', fontsize=fontsize, color="gray")
+        ax[1, 0].imshow(original_mask)
+        ax[1, 0].set_title("Original mask", fontsize=fontsize, color="gray")
+
+        for i in range(len(images)):
+            ax[0, i + 1].imshow(images[i])
+            ax[0, i + 1].set_title("Augmented image", fontsize=fontsize, color="gray")
+
+            ax[1, i + 1].imshow(masks[i])
+            ax[1, i + 1].set_title("Augmented mask", fontsize=fontsize, color="gray")
     return fig2img(f)
