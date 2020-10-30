@@ -22,6 +22,8 @@ import asyncio
 import janus
 import json
 
+from data_utils import plot_images
+
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
 
@@ -465,3 +467,13 @@ class InteractiveTrainer:
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
         return geojson, mask[0, :, :, :]
+
+    def plot_augmentations(self):
+        batchX = []
+        batchY = []
+        x, y, _ = self.get_random_training_sample()
+        for i in range(4):
+            augmented = self.augmentor(image=x, mask=y)
+            batchX += [augmented["image"]]
+            batchY += [augmented["mask"]]
+        return plot_images(batchX, batchY, x, y)

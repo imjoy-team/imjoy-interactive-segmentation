@@ -42,6 +42,16 @@ class ImJoyPlugin:
             (image * 255).astype("uint8"), type="itk-vtk", name=self.current_sample_info['name']
         )
 
+    async def get_augmentations(self):
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        figure = self._trainer.plot_augmentations()
+        self.image_layer = await self.viewer.view_image(
+            figure, type="itk-vtk", name='Augmented grid'
+        )
+
     async def predict(self):
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
@@ -233,6 +243,11 @@ class ImJoyPlugin:
                         "type": "button",
                         "label": "Send for Evaluation",
                         "callback": self.send_for_evaluation,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Get augmented patches",
+                        "callback": self.get_augmentations,
                     },
                 ],
             }
