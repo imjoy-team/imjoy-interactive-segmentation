@@ -47,8 +47,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        self._trainer.visualize_augmentation()
-        figure = imread('./data/augmented_grid.png')
+        figure = self._trainer.plot_augmentations()
         self.image_layer = await self.viewer.view_image(
             figure, type="itk-vtk", name='Augmented grid'
         )
