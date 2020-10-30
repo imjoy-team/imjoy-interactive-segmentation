@@ -191,7 +191,7 @@ class ImJoyPlugin:
             self.current_annotation,
             target_folder="train",
         )
-        api.showMessage("image moved to the training set")
+        api.showMessage("Sample moved to the training set")
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()

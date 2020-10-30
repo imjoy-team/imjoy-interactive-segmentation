@@ -91,11 +91,10 @@ class BCEJaccardLoss(Loss):
         ce_border = F.binary_crossentropy(
             gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules
         )
-        ce = ce_body + ce_border
-        #         dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
-        #         dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
-        #         loss = 0.6 * ce + 0.2 * dice_body + 0.2 * dice_border
-        return ce
+
+        dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
+        dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
+        return 0.6 * (ce_body + ce_border) + 0.2 * (dice_body + dice_border)
 
 
 def zero_mean_unit_var(x):
@@ -126,7 +125,7 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
         )
         logger.info("model built from scratch, backbone: %s", backbone)
 
-    model.compile("Adam", loss=sm.losses.bce_jaccard_loss)  # BCEJaccardLoss()
+    model.compile("Adam", loss=BCEJaccardLoss())
 
     warnings.resetwarnings()
     return model, zero_mean_unit_var
