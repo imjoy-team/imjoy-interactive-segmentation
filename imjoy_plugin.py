@@ -305,7 +305,8 @@ class ImJoyPlugin:
 
         losses = self._trainer.reports or []
         if len(losses) > 10000:
-            losses = losses[-10000:]
+            step = int(len(losses) / 5000)
+            losses = losses[::step]
         chart = await self.viewer.add_widget(
             {
                 "_rintf": True,
