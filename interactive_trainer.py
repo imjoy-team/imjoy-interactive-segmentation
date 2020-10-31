@@ -226,14 +226,18 @@ class InteractiveTrainer:
     def get_instance(*args, **kwargs):
         """Static method to fetch the current instance."""
         instance = InteractiveTrainer.__instance__
-        if instance is None:
+        if len(args) == 0 and instance is None:
+            raise Exception("No instance available")
+        elif instance is None:
             return InteractiveTrainer(*args, **kwargs)
+        elif len(args) == 0:
+            return instance
 
         if instance._training_loop_running and instance.training_enabled:
             print(
                 "Reconnecting to an existing training session, if you want to start a new one, please stop the training and run it again."
             )
-            return InteractiveTrainer.__instance__
+            return instance
         else:
             instance.model = None
             tf.keras.backend.clear_session()

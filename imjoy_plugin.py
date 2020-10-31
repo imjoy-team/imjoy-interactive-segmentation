@@ -17,6 +17,9 @@ class ImJoyPlugin:
         self.mask_layer = None
         self.image_layer = None
 
+    def get_trainer(self):
+        return self._trainer
+
     def start_training(self):
         self._trainer.start()
 
@@ -301,6 +304,8 @@ class ImJoyPlugin:
         )
 
         losses = self._trainer.reports or []
+        if len(losses) > 10000:
+            losses = losses[-10000:]
         chart = await self.viewer.add_widget(
             {
                 "_rintf": True,
@@ -375,4 +380,6 @@ class ImJoyPlugin:
 
 def start_interactive_segmentation(*args, **kwargs):
     trainer = InteractiveTrainer.get_instance(*args, **kwargs)
-    api.export(ImJoyPlugin(trainer))
+    plugin = ImJoyPlugin(trainer)
+    api.export(plugin)
+    return plugin
