@@ -1,4 +1,5 @@
 imjoy
+imjoy-rpc>=0.2.32
 geojson
 read_roi
 palettable

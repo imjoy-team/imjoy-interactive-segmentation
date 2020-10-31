@@ -158,7 +158,15 @@ class ImJoyPlugin:
             api.showMessage("No object detected.")
 
     async def send_for_training(self):
+        if not self.geojson_layer:
+            api.showMessage("no annotation available")
+            return
+
         self.current_annotation = await self.geojson_layer.get_features()
+        if len(self.current_annotation["features"]) < 1:
+            api.showMessage("no annotation available")
+            return
+
         img = imread(
             os.path.join(
                 self._trainer.data_dir,
@@ -192,6 +200,8 @@ class ImJoyPlugin:
             target_folder="train",
         )
         api.showMessage("Sample moved to the training set")
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
@@ -298,11 +308,33 @@ class ImJoyPlugin:
                 "type": "vega",
                 "schema": {
                     "$schema": "https://vega.github.io/schema/vega-lite/v4.8.1.json",
-                    "mark": "line",
                     "encoding": {
                         "x": {"type": "quantitative", "field": "iteration"},
                         "y": {"type": "quantitative", "field": "loss"},
+                        "tooltip": [
+                            {"field": "loss", "type": "quantitative"},
+                            {"field": "rolling_mean", "type": "quantitative"},
+                            {"field": "iteration", "type": "ordinal"},
+                        ],
                     },
+                    "transform": [
+                        {
+                            "window": [
+                                {"field": "loss", "op": "mean", "as": "rolling_mean"}
+                            ],
+                            "frame": [-200, 200],
+                        }
+                    ],
+                    "layer": [
+                        {
+                            "mark": {"type": "line", "opacity": 0.3},
+                            "encoding": {"y": {"field": "loss", "title": "Loss"}},
+                        },
+                        {
+                            "mark": {"type": "line", "color": "red", "size": 3},
+                            "encoding": {"y": {"field": "rolling_mean"}},
+                        },
+                    ],
                     "data": {"name": "loss"},
                     "datasets": {"loss": losses},
                 },

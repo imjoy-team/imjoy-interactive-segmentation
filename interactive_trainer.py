@@ -484,7 +484,7 @@ class InteractiveTrainer:
         mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_nuclei(mask[0, :, :, :]))
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.5)
+        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.0)
         return geojson, mask[0, :, :, :]
 
     def plot_augmentations(self):
