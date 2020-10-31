@@ -137,6 +137,9 @@ def get_augmentor(target_size=128):
         [
             A.RandomCrop(crop_size, crop_size),
             A.VerticalFlip(p=0.5),
+            A.RandomScale(scale_limit=0.3),
+            A.Rotate(limit=180, p=1),
+            A.CenterCrop(target_size, target_size),
             A.OneOf(
                 [
                     A.RandomBrightnessContrast(p=0.5),
@@ -144,8 +147,6 @@ def get_augmentor(target_size=128):
                 ],
                 p=0.1,
             ),
-            A.Rotate(limit=180, p=1),
-            A.CenterCrop(target_size, target_size),
         ]
     )
 
