@@ -135,9 +135,10 @@ def get_augmentor(target_size=128):
     crop_size = int(target_size * 1.415)
     return A.Compose(
         [
-            A.RandomCrop(crop_size, crop_size),
+            A.RandomSizedCrop(
+                [int(crop_size * 0.8), int(crop_size * 1.2)], crop_size, crop_size
+            ),
             A.VerticalFlip(p=0.5),
-            A.RandomScale(scale_limit=0.3),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
             A.OneOf(
