@@ -482,14 +482,19 @@ class InteractiveTrainer:
 
         files = [os.path.join(sample_dir, "annotation.json")]
         gen_mask_from_geojson(files, masks_to_create_value=[self.mask_type])
+        new_sample_dir = os.path.join(
+            self.data_dir, target_folder, sample_name)
+        shutil.move(sample_dir, new_sample_dir)
+
         if target_folder == "train":
+            # get mask_diff
             prediction = imageio.imread(
-                os.path.join(sample_dir, 'prediction.png')
+                os.path.join(new_sample_dir, 'prediction.png')
             )
             prediction = prediction.astype('int32')
             mask = imageio.imread(
                 os.path.join(
-                    sample_dir,
+                    new_sample_dir,
                     self.object_name + '_' + self.mask_type + '.png'
                 )
             )
@@ -498,18 +503,18 @@ class InteractiveTrainer:
             mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
             mask_diff = np.clip(mask_diff, 0, 255)
             mask_diff = mask_diff.astype('uint8')
-            imageio.imsave(
-                os.path.join(sample_dir, 'mask_diff.png'),
-                mask_diff
+            mask_diff = rescale(
+                mask_diff, self.scale_factor,
+                multichannel=(img.ndim == 3),
+                anti_aliasing=True
             )
+            mask_diff = mask_diff.astype('float32')
+            mask_diff = mask_diff / mask_diff.max()
 
-        new_sample_dir = os.path.join(
-            self.data_dir, target_folder, sample_name)
-        shutil.move(sample_dir, new_sample_dir)
-
-        if target_folder == "train":
             img = self.load_input_image(target_folder, sample_name)
             mask = self.load_target_image(target_folder, sample_name)
+            mask[..., 0] = mask_diff
+
             self.sample_pool.append(
                 (img, mask, {"name": sample_name, "path": new_sample_dir})
             )
@@ -522,7 +527,8 @@ class InteractiveTrainer:
         )
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_cell2(mask[0, :, :, :]))
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=0.2)
+        # simplify_tol is removed, otherwise, some coordinates will be empty
+        geojson = mask_to_geojson(labels, label=self.object_name)
         return geojson, mask[0, :, :, :]
 
     def plot_augmentations(self):
