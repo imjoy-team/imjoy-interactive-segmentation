@@ -500,7 +500,7 @@ class InteractiveTrainer:
         )
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_cell2(mask[0, :, :, :]))
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.0)
+        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=0.2)
         return geojson, mask[0, :, :, :]
 
     def plot_augmentations(self):
