@@ -205,6 +205,8 @@ class ImJoyPlugin:
         api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
@@ -296,7 +298,7 @@ class ImJoyPlugin:
                     },
                     {
                         "type": "button",
-                        "label": "Get augmented patches",
+                        "label": "Get Augmented Patches",
                         "callback": self.get_augmentations,
                     },
                 ],
