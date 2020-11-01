@@ -17,7 +17,7 @@ from skimage.transform import rescale
 
 from imgseg.geojson_utils import gen_mask_from_geojson
 from data_utils import mask_to_geojson
-from imgseg.hpa_seg_utils import label_nuclei
+from imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
 import json
@@ -495,9 +495,11 @@ class InteractiveTrainer:
                 self.sample_pool.pop(0)
 
     def predict(self, image):
-        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
+        mask = self.model.predict(
+            self.preprocess_input(np.expand_dims(image, axis=0))
+        )
         mask[0, :, :, 0] = 0
-        labels = np.flipud(label_nuclei(mask[0, :, :, :]))
+        labels = np.flipud(label_cell2(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.0)
         return geojson, mask[0, :, :, :]
 
