@@ -482,7 +482,29 @@ class InteractiveTrainer:
 
         files = [os.path.join(sample_dir, "annotation.json")]
         gen_mask_from_geojson(files, masks_to_create_value=[self.mask_type])
-        new_sample_dir = os.path.join(self.data_dir, target_folder, sample_name)
+        if target_folder == "train":
+            prediction = imageio.imread(
+                os.path.join(sample_dir, 'prediction.png')
+            )
+            prediction = prediction.astype('int32')
+            mask = imageio.imread(
+                os.path.join(
+                    sample_dir,
+                    self.object_name + '_' + self.mask_type + '.png'
+                )
+            )
+            mask = mask.astype('int32')
+            mask_diff = np.abs(mask - prediction)
+            mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
+            mask_diff = np.clip(mask_diff, 0, 255)
+            mask_diff = mask_diff.astype('uint8')
+            imageio.imsave(
+                os.path.join(sample_dir, 'mask_diff.png'),
+                mask_diff
+            )
+
+        new_sample_dir = os.path.join(
+            self.data_dir, target_folder, sample_name)
         shutil.move(sample_dir, new_sample_dir)
 
         if target_folder == "train":
