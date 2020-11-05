@@ -528,7 +528,7 @@ class InteractiveTrainer:
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_cell2(mask[0, :, :, :]))
         # simplify_tol is removed, otherwise, some coordinates will be empty
-        geojson = mask_to_geojson(labels, label=self.object_name)
+        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
         return geojson, mask[0, :, :, :]
 
     def plot_augmentations(self):
