@@ -250,7 +250,7 @@ class ImJoyPlugin:
         return samples
 
     async def run(self, ctx):
-        self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
+        self.viewer = await api.createWindow(src="https://kaibu.org/#/app", fullscreen=True)
         self.viewer.set_loader(True)
 
         async def node_dbclick_callback(node):
