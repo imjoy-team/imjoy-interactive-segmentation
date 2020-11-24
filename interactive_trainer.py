@@ -7,7 +7,6 @@ import time
 import traceback
 import warnings
 import tensorflow as tf
-import segmentation_models as sm
 import albumentations as A
 import numpy as np
 from tqdm import tqdm
@@ -24,6 +23,8 @@ import json
 
 from data_utils import plot_images
 
+os.environ['SM_FRAMEWORK'] = 'tf.keras'
+import segmentation_models as sm
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
 
@@ -329,7 +330,10 @@ class InteractiveTrainer:
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
-        self.loop = asyncio.get_running_loop()
+        if sys.version_info <= (3, 6):
+            self.loop = asyncio.get_event_loop()
+        else:
+            self.loop = asyncio.get_running_loop()
         self.training_config = {"save_freq": 200}
         self.start_training_loop()
         self._initialized = True
