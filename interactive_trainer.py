@@ -29,6 +29,7 @@ import segmentation_models as sm
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
 
+os.makedirs("data", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
