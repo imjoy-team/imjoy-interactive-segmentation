@@ -331,7 +331,7 @@ class InteractiveTrainer:
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
-        if sys.version_info <= (3, 6):
+        if sys.version_info < (3, 7):
             self.loop = asyncio.get_event_loop()
         else:
             self.loop = asyncio.get_running_loop()
