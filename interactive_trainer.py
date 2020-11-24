@@ -24,7 +24,7 @@ import json
 
 from data_utils import plot_images
 
-os.environ['SM_FRAMEWORK'] = 'tf.keras'
+os.environ["SM_FRAMEWORK"] = "tf.keras"
 import segmentation_models as sm
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
@@ -143,13 +143,7 @@ def get_augmentor(target_size=128):
             A.VerticalFlip(p=0.5),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
-            A.OneOf(
-                [
-                    A.RandomBrightnessContrast(p=0.5),
-                    A.RandomGamma(p=0.5),
-                ],
-                p=0.1,
-            ),
+            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
         ]
     )
 
@@ -301,11 +295,7 @@ class InteractiveTrainer:
         self.scale_factor = scale_factor
         self.queue = janus.Queue()
         self.sample_pool = load_sample_pool(
-            data_dir,
-            folder,
-            input_channels,
-            self.target_channels,
-            self.scale_factor,
+            data_dir, folder, input_channels, self.target_channels, self.scale_factor,
         )
         _img, _mask, _info = self.sample_pool[0]
         assert (
@@ -398,9 +388,8 @@ class InteractiveTrainer:
                             self.save_model()
                     elif task["type"] == "start":
                         self.training_enabled = True
-                    # elif task["type"] == "predict":
-                    #     result = self.predict(task["data"])
-                    #     task["callback"](result)
+                    elif task["type"] == "predict":
+                        self._prediction_result = self.predict(task["data"])
                     else:
                         logger.warn("unsupported task type %s", task["type"])
                     sync_q.task_done()
@@ -413,10 +402,7 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {
-                            "loss": loss_metrics[0],
-                            "iteration": iteration,
-                        }
+                        {"loss": loss_metrics[0], "iteration": iteration,}
                     )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
@@ -487,33 +473,30 @@ class InteractiveTrainer:
 
         files = [os.path.join(sample_dir, "annotation.json")]
         gen_mask_from_geojson(files, masks_to_create_value=[self.mask_type])
-        new_sample_dir = os.path.join(
-            self.data_dir, target_folder, sample_name)
+        new_sample_dir = os.path.join(self.data_dir, target_folder, sample_name)
         shutil.move(sample_dir, new_sample_dir)
 
         if target_folder == "train":
             # get mask_diff
-            prediction = imageio.imread(
-                os.path.join(new_sample_dir, 'prediction.png')
-            )
-            prediction = prediction.astype('int32')
+            prediction = imageio.imread(os.path.join(new_sample_dir, "prediction.png"))
+            prediction = prediction.astype("int32")
             mask = imageio.imread(
                 os.path.join(
-                    new_sample_dir,
-                    self.object_name + '_' + self.mask_type + '.png'
+                    new_sample_dir, self.object_name + "_" + self.mask_type + ".png"
                 )
             )
-            mask = mask.astype('int32')
+            mask = mask.astype("int32")
             mask_diff = np.abs(mask - prediction)
             mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
             mask_diff = np.clip(mask_diff, 0, 255)
-            mask_diff = mask_diff.astype('uint8')
+            mask_diff = mask_diff.astype("uint8")
             mask_diff = rescale(
-                mask_diff, self.scale_factor,
+                mask_diff,
+                self.scale_factor,
                 multichannel=(img.ndim == 3),
-                anti_aliasing=True
+                anti_aliasing=True,
             )
-            mask_diff = mask_diff.astype('float32')
+            mask_diff = mask_diff.astype("float32")
             mask_diff = mask_diff / mask_diff.max()
 
             img = self.load_input_image(target_folder, sample_name)
@@ -526,10 +509,15 @@ class InteractiveTrainer:
             if len(self.sample_pool) > self.max_pool_length:
                 self.sample_pool.pop(0)
 
+    def predict_async(self, image):
+        self._prediction_result = None
+        self.queue.sync_q.put({"type": "predict", "data": image})
+
+    def get_prediction_result(self):
+        return self._prediction_result
+
     def predict(self, image):
-        mask = self.model.predict(
-            self.preprocess_input(np.expand_dims(image, axis=0))
-        )
+        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_cell2(mask[0, :, :, :]))
         # simplify_tol is removed, otherwise, some coordinates will be empty

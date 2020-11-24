@@ -6,6 +6,7 @@ import json
 from imageio import imread, imwrite
 from imjoy import api
 from interactive_trainer import InteractiveTrainer
+import asyncio
 
 
 class ImJoyPlugin:
@@ -58,33 +59,49 @@ class ImJoyPlugin:
         )
 
     async def predict(self):
+        self.viewer.set_loader(True)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        polygons, mask = self._trainer.predict(self.current_image)
-        mask = np.clip(mask * 255, 0, 255).astype("uint8")
-        imwrite(os.path.join(self.current_sample_info["path"], "prediction.png"), mask)
-        self.current_annotation = polygons
+        self._trainer.predict_async(self.current_image)
 
-        self.mask_layer = await self.viewer.view_image(
-            mask,
-            type="itk-vtk",
-            name=self._trainer.object_name + "_mask",
-            opacity=0.5,
-        )
-        if len(polygons) > 0:
-            if len(polygons) < 2000:
-                self.geojson_layer = await self.viewer.add_shapes(
-                    polygons,
-                    shape_type="polygon",
-                    edge_color="red",
-                    name=self._trainer.object_name,
-                )
+        async def check_prediction():
+            self.viewer.set_loader(True)
+            result = self._trainer.get_prediction_result()
+            if result is None:
+                self.viewer.set_timeout(check_prediction, 500)
+                return
+            api.showMessage("prediction done")
+            self.viewer.set_loader(True)
+            polygons, mask = result
+            mask = np.clip(mask * 255, 0, 255).astype("uint8")
+            imwrite(
+                os.path.join(self.current_sample_info["path"], "prediction.png"), mask
+            )
+            self.current_annotation = polygons
+
+            self.mask_layer = await self.viewer.view_image(
+                mask,
+                type="itk-vtk",
+                name=self._trainer.object_name + "_mask",
+                opacity=0.5,
+            )
+            self.viewer.set_loader(False)
+            if len(polygons) > 0:
+                if len(polygons) < 2000:
+                    self.geojson_layer = await self.viewer.add_shapes(
+                        polygons,
+                        shape_type="polygon",
+                        edge_color="red",
+                        name=self._trainer.object_name,
+                    )
+                else:
+                    api.showMessage(f"Too many object detected ({len(polygons)}).")
             else:
-                api.showMessage(f"Too many object detected ({len(polygons)}).")
-        else:
-            api.showMessage("No object detected.")
+                api.showMessage("No object detected.")
+
+        self.viewer.set_timeout(check_prediction, 1000)
 
     async def fetch_mask(self):
         if self.mask_layer:
@@ -276,11 +293,7 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {
-                        "type": "button",
-                        "label": "Predict",
-                        "callback": self.predict,
-                    },
+                    {"type": "button", "label": "Predict", "callback": self.predict,},
                     {
                         "type": "button",
                         "label": "Fetch the Mask",
