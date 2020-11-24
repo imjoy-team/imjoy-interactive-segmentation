@@ -6,7 +6,7 @@ import json
 from imageio import imread, imwrite
 from imjoy import api
 
-# from interactive_trainer import InteractiveTrainer
+from interactive_trainer import InteractiveTrainer
 import asyncio
 
 
