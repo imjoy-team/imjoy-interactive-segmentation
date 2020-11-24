@@ -78,10 +78,10 @@ class ImJoyPlugin:
                 self.viewer.set_loader(True)
                 polygons, mask = result
                 mask = np.clip(mask * 255, 0, 255).astype("uint8")
-                imwrite(
-                    os.path.join(self.current_sample_info["path"], "prediction.png"),
-                    mask,
-                )
+                # imwrite(
+                #     os.path.join(self.current_sample_info["path"], "prediction.png"),
+                #     mask,
+                # )
                 self.current_annotation = polygons
 
                 self.mask_layer = await self.viewer.view_image(
