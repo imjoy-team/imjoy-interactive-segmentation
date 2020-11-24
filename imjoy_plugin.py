@@ -5,7 +5,8 @@ import numpy as np
 import json
 from imageio import imread, imwrite
 from imjoy import api
-from interactive_trainer import InteractiveTrainer
+
+# from interactive_trainer import InteractiveTrainer
 import asyncio
 
 
@@ -73,33 +74,39 @@ class ImJoyPlugin:
                 self.viewer.set_timeout(check_prediction, 500)
                 return
             api.showMessage("prediction done")
-            self.viewer.set_loader(True)
-            polygons, mask = result
-            mask = np.clip(mask * 255, 0, 255).astype("uint8")
-            imwrite(
-                os.path.join(self.current_sample_info["path"], "prediction.png"), mask
-            )
-            self.current_annotation = polygons
+            try:
+                self.viewer.set_loader(True)
+                polygons, mask = result
+                mask = np.clip(mask * 255, 0, 255).astype("uint8")
+                imwrite(
+                    os.path.join(self.current_sample_info["path"], "prediction.png"),
+                    mask,
+                )
+                self.current_annotation = polygons
 
-            self.mask_layer = await self.viewer.view_image(
-                mask,
-                type="itk-vtk",
-                name=self._trainer.object_name + "_mask",
-                opacity=0.5,
-            )
-            self.viewer.set_loader(False)
-            if len(polygons) > 0:
-                if len(polygons) < 2000:
-                    self.geojson_layer = await self.viewer.add_shapes(
-                        polygons,
-                        shape_type="polygon",
-                        edge_color="red",
-                        name=self._trainer.object_name,
-                    )
+                self.mask_layer = await self.viewer.view_image(
+                    mask,
+                    type="itk-vtk",
+                    name=self._trainer.object_name + "_mask",
+                    opacity=0.5,
+                )
+                self.viewer.set_loader(False)
+                if len(polygons) > 0:
+                    if len(polygons) < 2000:
+                        self.geojson_layer = await self.viewer.add_shapes(
+                            polygons,
+                            shape_type="polygon",
+                            edge_color="red",
+                            name=self._trainer.object_name,
+                        )
+                    else:
+                        api.showMessage(f"Too many object detected ({len(polygons)}).")
                 else:
-                    api.showMessage(f"Too many object detected ({len(polygons)}).")
-            else:
-                api.showMessage("No object detected.")
+                    api.showMessage("No object detected.")
+            except Exception as e:
+                api.showMessage(str(e))
+            finally:
+                self.viewer.set_loader(False)
 
         self.viewer.set_timeout(check_prediction, 1000)
 
