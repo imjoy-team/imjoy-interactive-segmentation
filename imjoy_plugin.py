@@ -18,6 +18,7 @@ class ImJoyPlugin:
         self.geojson_layer = None
         self.mask_layer = None
         self.image_layer = None
+        self._mask_prediction = None
 
     def get_trainer(self):
         return self._trainer
@@ -35,6 +36,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
+        self._mask_prediction = None
         if folder == "test":
             image, _, info = self._trainer.get_test_sample(sample_name)
         elif folder == "train":
@@ -186,7 +188,7 @@ class ImJoyPlugin:
             api.showMessage("No object detected.")
 
     async def send_for_training(self):
-        if not self._mask_prediction:
+        if self._mask_prediction is None:
             api.showMessage("do prediction first")
         if not self.geojson_layer:
             api.showMessage("no annotation available")
@@ -230,6 +232,7 @@ class ImJoyPlugin:
             target_folder="train",
             prediction=self._mask_prediction
         )
+        self._mask_prediction = None
         api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
