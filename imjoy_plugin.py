@@ -82,6 +82,7 @@ class ImJoyPlugin:
                 #     os.path.join(self.current_sample_info["path"], "prediction.png"),
                 #     mask,
                 # )
+                self._mask_prediction = mask
                 self.current_annotation = polygons
 
                 self.mask_layer = await self.viewer.view_image(
@@ -185,6 +186,8 @@ class ImJoyPlugin:
             api.showMessage("No object detected.")
 
     async def send_for_training(self):
+        if not self._mask_prediction:
+            api.showMessage("do prediction first")
         if not self.geojson_layer:
             api.showMessage("no annotation available")
             return
@@ -225,6 +228,7 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             self.current_annotation,
             target_folder="train",
+            prediction=self._mask_prediction
         )
         api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
@@ -239,6 +243,10 @@ class ImJoyPlugin:
             self.current_annotation,
             target_folder="valid",
         )
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
 
     def get_sample_list(self, group):
         data_dir = os.path.join(self._trainer.data_dir, group)

@@ -461,7 +461,7 @@ class InteractiveTrainer:
         }
         return img, None, info
 
-    def push_sample(self, sample_name, geojson_annotation, target_folder="train"):
+    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
@@ -479,7 +479,7 @@ class InteractiveTrainer:
 
         if target_folder == "train":
             # get mask_diff
-            prediction = imageio.imread(os.path.join(new_sample_dir, "prediction.png"))
+            # prediction = imageio.imread(os.path.join(new_sample_dir, # "prediction.png"))
             prediction = prediction.astype("int32")
             mask = imageio.imread(
                 os.path.join(
