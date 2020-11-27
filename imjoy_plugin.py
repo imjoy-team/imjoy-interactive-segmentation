@@ -4,6 +4,7 @@ import time
 import numpy as np
 import json
 from imageio import imread, imwrite
+from data_utils import plot_images
 from imjoy import api
 
 from interactive_trainer import InteractiveTrainer
@@ -56,10 +57,25 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        figure = self._trainer.plot_augmentations()
-        self.image_layer = await self.viewer.view_image(
-            figure, type="itk-vtk", name="Augmented grid"
-        )
+        self._trainer.plot_augmentations_async()
+
+        async def check_augmentations():
+            self.viewer.set_loader(True)
+            figure = self._trainer._plot_augmentations_result
+            if figure is None:
+                self.viewer.set_timeout(check_augmentations, 1500)
+                return
+            api.showMessage("augmentations done")
+            try:
+                self.image_layer = await self.viewer.view_image(
+                    figure, type="itk-vtk", name="Augmented grid"
+                )
+            except Exception as e:
+                api.showMessage(str(e))
+            finally:
+                self.viewer.set_loader(False)
+        
+        self.viewer.set_timeout(check_augmentations, 1000)
 
     async def predict(self):
         self.viewer.set_loader(True)

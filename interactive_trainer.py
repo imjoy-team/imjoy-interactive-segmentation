@@ -393,6 +393,8 @@ class InteractiveTrainer:
                         self._prediction_result = self.predict(task["data"])
                     elif task["type"] == "push_sample":
                         self.push_sample(task["paras"])
+                    elif task["type"] == "plot_augmentations":
+                        self._plot_augmentations_result = self.plot_augmentations()
                     else:
                         logger.warn("unsupported task type %s", task["type"])
                     sync_q.task_done()
@@ -534,6 +536,13 @@ class InteractiveTrainer:
         # simplify_tol is removed, otherwise, some coordinates will be empty
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
         return geojson, mask[0, :, :, :]
+
+    def plot_augmentations_async(self):
+        self._plot_augmentations_result = None
+        self.queue.sync_q.put({"type": "plot_augmentations"})
+
+    def get_plot_augmentations(self):
+        return self._plot_augmentations_result
 
     def plot_augmentations(self):
         batchX = []
