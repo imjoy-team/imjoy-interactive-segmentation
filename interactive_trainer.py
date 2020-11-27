@@ -392,7 +392,7 @@ class InteractiveTrainer:
                     elif task["type"] == "predict":
                         self._prediction_result = self.predict(task["data"])
                     elif task["type"] == "push_sample":
-                        self.push_sample(task["paras"])
+                        self.push_sample(*task["args"], **task["kwargs"])
                     elif task["type"] == "plot_augmentations":
                         self._plot_augmentations_result = self.plot_augmentations()
                     else:
@@ -465,14 +465,11 @@ class InteractiveTrainer:
         }
         return img, None, info
 
-    def push_sample_async(self, paras):
-        self.queue.sync_q.put({"type": "push_sample", "paras": paras})
+    def push_sample_async(self, *args, **kwargs):
+        self.queue.sync_q.put(
+            {"type": "push_sample", "args": args, "kwargs": kwargs})
 
-    def push_sample(self, paras):
-        sample_name = paras.get('sample_name')
-        geojson_annotation = paras.get('geojson_annotation')
-        target_folder = paras.get('target_folder')
-        prediction = paras.get('prediction')
+    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
