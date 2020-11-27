@@ -391,6 +391,10 @@ class InteractiveTrainer:
                         self.training_enabled = True
                     elif task["type"] == "predict":
                         self._prediction_result = self.predict(task["data"])
+                    elif task["type"] == "push_sample":
+                        self.push_sample(*task["args"], **task["kwargs"])
+                    elif task["type"] == "plot_augmentations":
+                        self._plot_augmentations_result = self.plot_augmentations()
                     else:
                         logger.warn("unsupported task type %s", task["type"])
                     sync_q.task_done()
@@ -461,7 +465,11 @@ class InteractiveTrainer:
         }
         return img, None, info
 
-    def push_sample(self, sample_name, geojson_annotation, target_folder="train"):
+    def push_sample_async(self, *args, **kwargs):
+        self.queue.sync_q.put(
+            {"type": "push_sample", "args": args, "kwargs": kwargs})
+
+    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
@@ -479,7 +487,7 @@ class InteractiveTrainer:
 
         if target_folder == "train":
             # get mask_diff
-            prediction = imageio.imread(os.path.join(new_sample_dir, "prediction.png"))
+            # prediction = imageio.imread(os.path.join(new_sample_dir, # "prediction.png"))
             prediction = prediction.astype("int32")
             mask = imageio.imread(
                 os.path.join(
@@ -509,6 +517,7 @@ class InteractiveTrainer:
             )
             if len(self.sample_pool) > self.max_pool_length:
                 self.sample_pool.pop(0)
+            print("done with sample pushing")
 
     def predict_async(self, image):
         self._prediction_result = None
@@ -524,6 +533,13 @@ class InteractiveTrainer:
         # simplify_tol is removed, otherwise, some coordinates will be empty
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
         return geojson, mask[0, :, :, :]
+
+    def plot_augmentations_async(self):
+        self._plot_augmentations_result = None
+        self.queue.sync_q.put({"type": "plot_augmentations"})
+
+    def get_plot_augmentations(self):
+        return self._plot_augmentations_result
 
     def plot_augmentations(self):
         batchX = []
