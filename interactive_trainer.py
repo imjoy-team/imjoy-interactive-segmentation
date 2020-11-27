@@ -391,6 +391,8 @@ class InteractiveTrainer:
                         self.training_enabled = True
                     elif task["type"] == "predict":
                         self._prediction_result = self.predict(task["data"])
+                    elif task["type"] == "push_sample":
+                        self.push_sample(task["paras"])
                     else:
                         logger.warn("unsupported task type %s", task["type"])
                     sync_q.task_done()
@@ -461,7 +463,14 @@ class InteractiveTrainer:
         }
         return img, None, info
 
-    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
+    def push_sample_async(self, paras):
+        self.queue.sync_q.put({"type": "push_sample", "paras": paras})
+
+    def push_sample(self, paras):
+        sample_name = paras.get('sample_name')
+        geojson_annotation = paras.get('geojson_annotation')
+        target_folder = paras.get('target_folder')
+        prediction = paras.get('prediction')
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
@@ -509,6 +518,7 @@ class InteractiveTrainer:
             )
             if len(self.sample_pool) > self.max_pool_length:
                 self.sample_pool.pop(0)
+            print("done with sample pushing")
 
     def predict_async(self, image):
         self._prediction_result = None

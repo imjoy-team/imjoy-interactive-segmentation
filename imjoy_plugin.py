@@ -189,7 +189,8 @@ class ImJoyPlugin:
 
     async def send_for_training(self):
         if self._mask_prediction is None:
-            api.showMessage("do prediction first")
+            api.showMessage("please predict first")
+            return
         if not self.geojson_layer:
             api.showMessage("no annotation available")
             return
@@ -226,14 +227,15 @@ class ImJoyPlugin:
             self.current_annotation["features"][i]["geometry"]["coordinates"][
                 0
             ] = new_coordinates
-        self._trainer.push_sample(
-            self.current_sample_info["name"],
-            self.current_annotation,
-            target_folder="train",
-            prediction=self._mask_prediction
-        )
+        paras = {
+            'sample_name': self.current_sample_info["name"],
+            'geojson_annotation': self.current_annotation,
+            'target_folder': "train",
+            'prediction': self._mask_prediction
+        }
+        self._trainer.push_sample_async(paras)
         self._mask_prediction = None
-        api.showMessage("Sample moved to the training set")
+        #api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
@@ -241,11 +243,13 @@ class ImJoyPlugin:
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
-        self._trainer.push_sample(
-            self.current_sample_info["name"],
-            self.current_annotation,
-            target_folder="valid",
-        )
+        paras = {
+            'sample_name': self.current_sample_info["name"],
+            'geojson_annotation': self.current_annotation,
+            'target_folder': "valid",
+            'prediction': self._mask_prediction
+        }
+        self._trainer.push_sample_async(paras)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
