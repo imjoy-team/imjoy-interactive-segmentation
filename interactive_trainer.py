@@ -1,13 +1,14 @@
-import os, sys, time
-from stat import S_ISREG, ST_CTIME, ST_MODE
+import os
+import sys
+import time
 import random
 import shutil
 import logging
 import json
 import traceback
 import warnings
+from stat import S_ISREG, ST_CTIME, ST_MODE
 import tensorflow as tf
-import segmentation_models as sm
 import albumentations as A
 import numpy as np
 from tqdm import tqdm
@@ -17,14 +18,17 @@ from skimage.transform import rescale
 
 from imgseg.geojson_utils import gen_mask_from_geojson
 from data_utils import mask_to_geojson
-from imgseg.hpa_seg_utils import label_nuclei
+from imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
 from data_utils import plot_images
 
+os.environ["SM_FRAMEWORK"] = "tf.keras"
+import segmentation_models as sm
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
 
+os.makedirs("data", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -139,13 +143,7 @@ def get_augmentor(target_size=128):
             A.VerticalFlip(p=0.5),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
-            A.OneOf(
-                [
-                    A.RandomBrightnessContrast(p=0.5),
-                    A.RandomGamma(p=0.5),
-                ],
-                p=0.1,
-            ),
+            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
         ]
     )
 
@@ -297,11 +295,7 @@ class InteractiveTrainer:
         self.scale_factor = scale_factor
         self.queue = janus.Queue()
         self.sample_pool = load_sample_pool(
-            data_dir,
-            folder,
-            input_channels,
-            self.target_channels,
-            self.scale_factor,
+            data_dir, folder, input_channels, self.target_channels, self.scale_factor,
         )
         _img, _mask, _info = self.sample_pool[0]
         assert (
@@ -327,7 +321,10 @@ class InteractiveTrainer:
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
-        self.loop = asyncio.get_running_loop()
+        if sys.version_info < (3, 7):
+            self.loop = asyncio.get_event_loop()
+        else:
+            self.loop = asyncio.get_running_loop()
         self.training_config = {"save_freq": 200}
         self.start_training_loop()
         self._initialized = True
@@ -391,9 +388,12 @@ class InteractiveTrainer:
                             self.save_model()
                     elif task["type"] == "start":
                         self.training_enabled = True
-                    # elif task["type"] == "predict":
-                    #     result = self.predict(task["data"])
-                    #     task["callback"](result)
+                    elif task["type"] == "predict":
+                        self._prediction_result = self.predict(task["data"])
+                    elif task["type"] == "push_sample":
+                        self.push_sample(*task["args"], **task["kwargs"])
+                    elif task["type"] == "plot_augmentations":
+                        self._plot_augmentations_result = self.plot_augmentations()
                     else:
                         logger.warn("unsupported task type %s", task["type"])
                     sync_q.task_done()
@@ -406,10 +406,7 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {
-                            "loss": loss_metrics[0],
-                            "iteration": iteration,
-                        }
+                        {"loss": loss_metrics[0], "iteration": iteration,}
                     )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
@@ -468,7 +465,11 @@ class InteractiveTrainer:
         }
         return img, None, info
 
-    def push_sample(self, sample_name, geojson_annotation, target_folder="train"):
+    def push_sample_async(self, *args, **kwargs):
+        self.queue.sync_q.put(
+            {"type": "push_sample", "args": args, "kwargs": kwargs})
+
+    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
@@ -485,20 +486,60 @@ class InteractiveTrainer:
         shutil.move(sample_dir, new_sample_dir)
 
         if target_folder == "train":
+            # get mask_diff
+            # prediction = imageio.imread(os.path.join(new_sample_dir, # "prediction.png"))
+            prediction = prediction.astype("int32")
+            mask = imageio.imread(
+                os.path.join(
+                    new_sample_dir, self.object_name + "_" + self.mask_type + ".png"
+                )
+            )
+            mask = mask.astype("int32")
+            mask_diff = np.abs(mask - prediction)
+            mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
+            mask_diff = np.clip(mask_diff, 0, 255)
+            mask_diff = mask_diff.astype("uint8")
+            mask_diff = rescale(
+                mask_diff,
+                self.scale_factor,
+                multichannel=(img.ndim == 3),
+                anti_aliasing=True,
+            )
+            mask_diff = mask_diff.astype("float32")
+            mask_diff = mask_diff / mask_diff.max()
+
             img = self.load_input_image(target_folder, sample_name)
             mask = self.load_target_image(target_folder, sample_name)
+            mask[..., 0] = mask_diff
+
             self.sample_pool.append(
                 (img, mask, {"name": sample_name, "path": new_sample_dir})
             )
             if len(self.sample_pool) > self.max_pool_length:
                 self.sample_pool.pop(0)
+            print("done with sample pushing")
+
+    def predict_async(self, image):
+        self._prediction_result = None
+        self.queue.sync_q.put({"type": "predict", "data": image})
+
+    def get_prediction_result(self):
+        return self._prediction_result
 
     def predict(self, image):
         mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
         mask[0, :, :, 0] = 0
-        labels = np.flipud(label_nuclei(mask[0, :, :, :]))
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.0)
+        labels = np.flipud(label_cell2(mask[0, :, :, :]))
+        # simplify_tol is removed, otherwise, some coordinates will be empty
+        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
         return geojson, mask[0, :, :, :]
+
+    def plot_augmentations_async(self):
+        self._plot_augmentations_result = None
+        self.queue.sync_q.put({"type": "plot_augmentations"})
+
+    def get_plot_augmentations(self):
+        return self._plot_augmentations_result
 
     def plot_augmentations(self):
         batchX = []
