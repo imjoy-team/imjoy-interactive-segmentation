@@ -495,9 +495,7 @@ class InteractiveTrainer:
                 self.sample_pool.pop(0)
 
     def predict(self, image):
-        mask = self.model.predict(
-            self.preprocess_input(np.expand_dims(image, axis=0))
-        )
+        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
         mask[0, :, :, 0] = 0
         labels = np.flipud(label_cell2(mask[0, :, :, :]))
         geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=1.0)

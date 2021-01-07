@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import cellpose
@@ -18,10 +19,10 @@ if not os.path.exists(dataset_path):
 channels = ["er.png", "nuclei.png"]
 mask_filter = "cell_masks.png"
 folder = "./data/hpa_dataset_v2/train/3213_1239_D9_1"
-annotation_file = os.path.join(folder, 'annotation.json')
+annotation_file = os.path.join(folder, "annotation.json")
 
 # create labels file
-geojson_to_label(annotation_file, save_as='_masks.png')
+geojson_to_label(annotation_file, save_as="_masks.png")
 
 # read the input image
 X = read_multi_channel_image(folder, channels, rescale=1.0)
@@ -31,13 +32,16 @@ y = read_image(folder + "/cell_masks.png", rescale=1.0)
 
 model = CellPoseInteractiveModel()
 
+
 def test_train_once():
     model.train_once(X, y)
+
 
 def test_predict():
     y_predict = model.predict(X)
     assert y_predict.shape == (512, 512)
     cellpose.io.imsave(os.path.join(folder, "cellpose_predicted_mask.png"), y_predict)
+
 
 if __name__ == "__main__":
     test_train_once()

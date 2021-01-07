@@ -1,4 +1,4 @@
-class InteractiveModel():
+class InteractiveModel:
     def __init__(self, model_path):
         pass
 
