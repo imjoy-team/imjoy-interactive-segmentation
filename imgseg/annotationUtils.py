@@ -131,6 +131,10 @@ class GeojsonImporter(AnnotationImporter):
             if feat["geometry"]["type"] not in ["Polygon", "LineString"]:
                 skipped.append(feat["geometry"]["type"])
                 continue
+                
+            # skip empty roi
+            if len(feat["geometry"]["coordinates"][0]) <= 0:
+                continue
 
             key_annot = "annot_" + str(feat_idx)
             annot_dict[key_annot] = {}

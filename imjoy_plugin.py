@@ -4,8 +4,11 @@ import time
 import numpy as np
 import json
 from imageio import imread, imwrite
+from data_utils import plot_images
 from imjoy import api
+
 from interactive_trainer import InteractiveTrainer
+import asyncio
 
 
 class ImJoyPlugin:
@@ -16,6 +19,7 @@ class ImJoyPlugin:
         self.geojson_layer = None
         self.mask_layer = None
         self.image_layer = None
+        self._mask_prediction = None
 
     def get_trainer(self):
         return self._trainer
@@ -33,6 +37,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
+        self._mask_prediction = None
         if folder == "test":
             image, _, info = self._trainer.get_test_sample(sample_name)
         elif folder == "train":
@@ -52,39 +57,77 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        figure = self._trainer.plot_augmentations()
-        self.image_layer = await self.viewer.view_image(
-            figure, type="itk-vtk", name="Augmented grid"
-        )
+        self._trainer.plot_augmentations_async()
+
+        async def check_augmentations():
+            self.viewer.set_loader(True)
+            figure = self._trainer._plot_augmentations_result
+            if figure is None:
+                self.viewer.set_timeout(check_augmentations, 1500)
+                return
+            api.showMessage("augmentations done")
+            try:
+                self.image_layer = await self.viewer.view_image(
+                    figure, type="itk-vtk", name="Augmented grid"
+                )
+            except Exception as e:
+                api.showMessage(str(e))
+            finally:
+                self.viewer.set_loader(False)
+        
+        self.viewer.set_timeout(check_augmentations, 1000)
 
     async def predict(self):
+        self.viewer.set_loader(True)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
-        polygons, mask = self._trainer.predict(self.current_image)
-        mask = np.clip(mask * 255, 0, 255).astype("uint8")
-        imwrite(os.path.join(self.current_sample_info["path"], "prediction.png"), mask)
-        self.current_annotation = polygons
+        self._trainer.predict_async(self.current_image)
 
-        self.mask_layer = await self.viewer.view_image(
-            mask,
-            type="itk-vtk",
-            name=self._trainer.object_name + "_mask",
-            opacity=0.5,
-        )
-        if len(polygons) > 0:
-            if len(polygons) < 2000:
-                self.geojson_layer = await self.viewer.add_shapes(
-                    polygons,
-                    shape_type="polygon",
-                    edge_color="red",
-                    name=self._trainer.object_name,
+        async def check_prediction():
+            self.viewer.set_loader(True)
+            result = self._trainer.get_prediction_result()
+            if result is None:
+                self.viewer.set_timeout(check_prediction, 500)
+                return
+            api.showMessage("prediction done")
+            try:
+                self.viewer.set_loader(True)
+                polygons, mask = result
+                mask = np.clip(mask * 255, 0, 255).astype("uint8")
+                # imwrite(
+                #     os.path.join(self.current_sample_info["path"], "prediction.png"),
+                #     mask,
+                # )
+                self._mask_prediction = mask
+                self.current_annotation = polygons
+
+                self.mask_layer = await self.viewer.view_image(
+                    mask,
+                    type="itk-vtk",
+                    name=self._trainer.object_name + "_mask",
+                    opacity=0.5,
                 )
-            else:
-                api.showMessage(f"Too many object detected ({len(polygons)}).")
-        else:
-            api.showMessage("No object detected.")
+                self.viewer.set_loader(False)
+                if len(polygons) > 0:
+                    if len(polygons) < 2000:
+                        self.geojson_layer = await self.viewer.add_shapes(
+                            polygons,
+                            shape_type="polygon",
+                            edge_color="red",
+                            name=self._trainer.object_name,
+                        )
+                    else:
+                        api.showMessage(f"Too many object detected ({len(polygons)}).")
+                else:
+                    api.showMessage("No object detected.")
+            except Exception as e:
+                api.showMessage(str(e))
+            finally:
+                self.viewer.set_loader(False)
+
+        self.viewer.set_timeout(check_prediction, 1000)
 
     async def fetch_mask(self):
         if self.mask_layer:
@@ -161,6 +204,9 @@ class ImJoyPlugin:
             api.showMessage("No object detected.")
 
     async def send_for_training(self):
+        if self._mask_prediction is None:
+            api.showMessage("please predict first")
+            return
         if not self.geojson_layer:
             api.showMessage("no annotation available")
             return
@@ -197,12 +243,14 @@ class ImJoyPlugin:
             self.current_annotation["features"][i]["geometry"]["coordinates"][
                 0
             ] = new_coordinates
-        self._trainer.push_sample(
+        self._trainer.push_sample_async(
             self.current_sample_info["name"],
             self.current_annotation,
             target_folder="train",
+            prediction=self._mask_prediction
         )
-        api.showMessage("Sample moved to the training set")
+        self._mask_prediction = None
+        #api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
@@ -210,11 +258,16 @@ class ImJoyPlugin:
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
-        self._trainer.push_sample(
+        self._trainer.push_sample_async(
             self.current_sample_info["name"],
             self.current_annotation,
             target_folder="valid",
+            prediction=self._mask_prediction
         )
+        if self.geojson_layer:
+            self.viewer.remove_layer(self.geojson_layer)
+        if self.mask_layer:
+            self.viewer.remove_layer(self.mask_layer)
 
     def get_sample_list(self, group):
         data_dir = os.path.join(self._trainer.data_dir, group)
@@ -226,7 +279,7 @@ class ImJoyPlugin:
         return samples
 
     async def run(self, ctx):
-        self.viewer = await api.createWindow(src="https://kaibu.org/#/app")
+        self.viewer = await api.createWindow(src="https://kaibu.org/#/app", fullscreen=True)
         self.viewer.set_loader(True)
 
         async def node_dbclick_callback(node):
@@ -276,11 +329,7 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {
-                        "type": "button",
-                        "label": "Predict",
-                        "callback": self.predict,
-                    },
+                    {"type": "button", "label": "Predict", "callback": self.predict,},
                     {
                         "type": "button",
                         "label": "Fetch the Mask",
