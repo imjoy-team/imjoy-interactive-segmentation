@@ -18,6 +18,7 @@ def download_with_url(
 
 
 if __name__ == "__main__":
+    os.makedirs("./data", exist_ok=True)
     dataset_path = "./data/hpa_dataset_v2.zip"
     if not os.path.exists(dataset_path):
         url = "https://kth.box.com/shared/static/hcnspau5lndyhkkzgv2ygsyq1978qo90.zip"

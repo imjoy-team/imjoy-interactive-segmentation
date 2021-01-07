@@ -196,7 +196,7 @@ def gen_mask_from_geojson(
                     mask_dict["border_mask"],
                     [cv2.IMWRITE_PNG_COMPRESSION, 9],
                 )
-
+    print(" .... binary masks created .....")    
 
 if __name__ == "__main__":
     # # generate annotation from mask
