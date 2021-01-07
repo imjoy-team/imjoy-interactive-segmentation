@@ -1,7 +1,19 @@
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 import cellpose
 from models.cellpose import CellPoseInteractiveModel
 from cellpose.utils2 import read_multi_channel_image, geojson_to_label, read_image
+from download_example_dataset import download_with_url
+
+
+dataset_path = "./data/hpa_dataset_v2.zip"
+if not os.path.exists(dataset_path):
+    url = "https://kth.box.com/shared/static/hcnspau5lndyhkkzgv2ygsyq1978qo90.zip"
+    print("downloading dataset from " + url)
+    download_with_url(url, dataset_path, unzip=True)
+    print("dataset saved to " + dataset_path)
 
 channels = ["er.png", "nuclei.png"]
 mask_filter = "cell_masks.png"
