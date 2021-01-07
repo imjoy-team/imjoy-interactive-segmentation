@@ -144,7 +144,13 @@ def get_augmentor(target_size=128):
             A.VerticalFlip(p=0.5),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
-            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(p=0.5),
+                    A.RandomGamma(p=0.5),
+                ],
+                p=0.1,
+            ),
         ]
     )
 
@@ -296,7 +302,11 @@ class InteractiveTrainer:
         self.scale_factor = scale_factor
         self.queue = janus.Queue()
         self.sample_pool = load_sample_pool(
-            data_dir, folder, input_channels, self.target_channels, self.scale_factor,
+            data_dir,
+            folder,
+            input_channels,
+            self.target_channels,
+            self.scale_factor,
         )
         _img, _mask, _info = self.sample_pool[0]
         assert (
@@ -407,7 +417,10 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {"loss": loss_metrics[0], "iteration": iteration,}
+                        {
+                            "loss": loss_metrics[0],
+                            "iteration": iteration,
+                        }
                     )
                     if iteration % training_config["save_freq"] == 0:
                         self.save_model()
@@ -466,10 +479,11 @@ class InteractiveTrainer:
         return img, None, info
 
     def push_sample_async(self, *args, **kwargs):
-        self.queue.sync_q.put(
-            {"type": "push_sample", "args": args, "kwargs": kwargs})
+        self.queue.sync_q.put({"type": "push_sample", "args": args, "kwargs": kwargs})
 
-    def push_sample(self, sample_name, geojson_annotation, target_folder="train", prediction=None):
+    def push_sample(
+        self, sample_name, geojson_annotation, target_folder="train", prediction=None
+    ):
         sample_dir = os.path.join(self.data_dir, "test", sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]

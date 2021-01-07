@@ -200,7 +200,8 @@ def label_cell2(cell_pred):
         ),
     )
     cell_region1 = np.multiply(
-        img[..., 2] > threshold_value1, np.invert(np.asarray(cell_pred[..., 1] > 0.01)),
+        img[..., 2] > threshold_value1,
+        np.invert(np.asarray(cell_pred[..., 1] > 0.01)),
     )
     cell_region_eroded = morphology.erosion(cell_region1, morphology.square(25))
     cell_region_eroded = np.asarray(cell_region_eroded, dtype=np.uint8)
