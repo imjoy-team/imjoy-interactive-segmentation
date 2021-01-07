@@ -97,6 +97,14 @@ def test_predict():
     assert os.path.exists(file_path)
     # os.remove(file_path)
 
+    # save ground truth
+    file_path = os.path.join("./data/cellpose_ground_truth_mask.png")
+    if y.shape[0] == 4:
+        yt = y[1:, :, :]
+    else:
+        yt = y[0, :, :]
+    cellpose.io.imsave(file_path, yt)
+
 
 def test_save():
     model_path = "./data/cellpose_model.pth"
