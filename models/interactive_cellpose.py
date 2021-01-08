@@ -1,4 +1,5 @@
 import os
+import urllib.request
 import torch
 from pathlib import Path
 from cellpose import utils, models, io
@@ -45,14 +46,41 @@ class CellPoseInteractiveModel:
             style_on=style_on,
             concatenation=0,
         )
+        # load pretrained model weights if not specified
         if model_path is None:
-            filename = str(Path.home().joinpath(".cellpose/models/cytotorch_0"))
-            print("loading pretrained cellpose model from " + filename)
+            model_dir = Path.home().joinpath(".cellpose", "models")
+            os.makedirs(model_dir, exist_ok=True)
+            if style_on:
+                weights_path = model_dir / "cytotorch_0"
+                if not weights_path.exists():
+                    urllib.request.urlretrieve(
+                        "https://www.cellpose.org/models/cytotorch_0", str(weights_path)
+                    )
+                if not (model_dir / "size_cytotorch_0.npy").exists():
+                    urllib.request.urlretrieve(
+                        "https://www.cellpose.org/models/size_cytotorch_0.npy",
+                        str(model_dir / "size_cytotorch_0.npy"),
+                    )
+            else:
+                weights_path = (
+                    model_dir
+                    / "cellpose_residual_on_style_off_concatenation_off_train_v3.pth"
+                )
+                if not weights_path.exists():
+                    urllib.request.urlretrieve(
+                        "https://kth.box.com/shared/static/5aku1riqhf72pp10a9nvb0xi8tozx830.pth",
+                        str(weights_path),
+                    )
+
+            print("loading pretrained cellpose model from " + str(weights_path))
             if gpu:
-                self.model.net.load_state_dict(torch.load(filename), strict=False)
+                self.model.net.load_state_dict(
+                    torch.load(str(weights_path)), strict=False
+                )
             else:
                 self.model.net.load_state_dict(
-                    torch.load(filename, map_location=torch.device("cpu")), strict=False
+                    torch.load(str(weights_path), map_location=torch.device("cpu")),
+                    strict=False,
                 )
 
     def train(self, train_data, test_data=None, iterations=None):
