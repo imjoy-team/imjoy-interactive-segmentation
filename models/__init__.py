@@ -5,14 +5,14 @@ class InteractiveModel:
         """load and initialize the model"""
         pass
 
-    def train_once(self, X, y):
+    def train_on_batch(self, X, y):
         """train the model for one iteration
         Parameters
         --------------
-        X: array [channel, width, height]
+        X: array [batch_size, channel, width, height]
             the input image with 2 channels
 
-        y: array [channel, width, height]
+        y: array [batch_size, channel, width, height]
 
 
         Returns

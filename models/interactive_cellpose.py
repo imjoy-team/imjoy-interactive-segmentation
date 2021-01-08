@@ -93,14 +93,14 @@ class CellPoseInteractiveModel:
             batch_size=self.batch_size,
         )
 
-    def train_once(self, X, y):
+    def train_on_batch(self, X, y):
         """train the model for one iteration
         Parameters
         --------------
-        X: array [channel, width, height]
+        X: array [batch_size, channel, width, height]
             the input image with 2 channels
 
-        y: array [channel, width, height]
+        y: array [batch_size, channel, width, height]
             the mask (a.k.a label) image with one unique pixel value for one object
             if the shape is [1, width, height], then y is the label image
             otherwise, it should have channel=4 where the 1st channel is the label image
@@ -110,7 +110,13 @@ class CellPoseInteractiveModel:
         ------------------
         None
         """
-        self.train([[X], [y]])
+        assert X.shape[0] == y.shape[0]
+        X_ = []
+        y_ = []
+        for i in range(X.shape[0]):
+            X_.append(X[i])
+            y_.append(y[i])
+        self.train([X_, y_])
 
     def predict(self, X):
         """predict the model for one input image
