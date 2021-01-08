@@ -1,12 +1,13 @@
 import os
 import sys
+import time
 import random
 import shutil
 import logging
 import json
-import time
 import traceback
 import warnings
+from stat import S_ISREG, ST_CTIME, ST_MODE
 import tensorflow as tf
 import albumentations as A
 import numpy as np
@@ -20,8 +21,6 @@ from data_utils import mask_to_geojson
 from imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
-import json
-
 from data_utils import plot_images
 
 os.environ["SM_FRAMEWORK"] = "tf.keras"
@@ -455,7 +454,8 @@ class InteractiveTrainer:
         return self.reports
 
     def get_random_training_sample(self):
-        return random.choice(self.sample_pool)
+        w = list(range(len(self.sample_pool)+1))[1:]
+        return random.choices(self.sample_pool, weights=w,k=1)[0]
 
     def get_training_sample(self, sample_name=None):
         return self.get_sample("train", sample_name)
