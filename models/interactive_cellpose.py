@@ -50,27 +50,16 @@ class CellPoseInteractiveModel:
         if model_path is None:
             model_dir = Path.home().joinpath(".cellpose", "models")
             os.makedirs(model_dir, exist_ok=True)
-            if style_on:
-                weights_path = model_dir / "cytotorch_0"
-                if not weights_path.exists():
-                    urllib.request.urlretrieve(
-                        "https://www.cellpose.org/models/cytotorch_0", str(weights_path)
-                    )
-                if not (model_dir / "size_cytotorch_0.npy").exists():
-                    urllib.request.urlretrieve(
-                        "https://www.cellpose.org/models/size_cytotorch_0.npy",
-                        str(model_dir / "size_cytotorch_0.npy"),
-                    )
-            else:
-                weights_path = (
-                    model_dir
-                    / "cellpose_residual_on_style_off_concatenation_off_train_v3.pth"
+            weights_path = model_dir / "cytotorch_0"
+            if not weights_path.exists():
+                urllib.request.urlretrieve(
+                    "https://www.cellpose.org/models/cytotorch_0", str(weights_path)
                 )
-                if not weights_path.exists():
-                    urllib.request.urlretrieve(
-                        "https://kth.box.com/shared/static/5aku1riqhf72pp10a9nvb0xi8tozx830.pth",
-                        str(weights_path),
-                    )
+            if not (model_dir / "size_cytotorch_0.npy").exists():
+                urllib.request.urlretrieve(
+                    "https://www.cellpose.org/models/size_cytotorch_0.npy",
+                    str(model_dir / "size_cytotorch_0.npy"),
+                )
 
             print("loading pretrained cellpose model from " + str(weights_path))
             if gpu:
