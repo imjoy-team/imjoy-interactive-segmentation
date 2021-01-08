@@ -28,6 +28,7 @@ os.environ["SM_FRAMEWORK"] = "tf.keras"
 import segmentation_models as sm
 from segmentation_models.base import Loss
 from segmentation_models.base import functional as F
+from models.interactive_cellpose import CellPoseInteractiveModel
 
 os.makedirs("data", exist_ok=True)
 logging.basicConfig(
@@ -222,7 +223,7 @@ def load_sample_pool(data_dir, folder, input_channels, target_channels, scale_fa
     return sample_pool
 
 
-class InteractiveTrainer:
+class InteractiveTrainer(CellPoseInteractiveModel):
     __instance__ = None
 
     @staticmethod
@@ -293,7 +294,6 @@ class InteractiveTrainer:
                     self.reports = json.load(f)
         else:
             checkpoint = None
-        self.model, self.preprocess_input = load_unet_model(checkpoint)
         self.class_weight = {0: 0.0, 1: 100.0, 2: 1.0}
         self.object_name = object_name
         self.mask_type = mask_type
@@ -358,11 +358,14 @@ class InteractiveTrainer:
         for i in range(self.batch_size):
             x, y, info = self.get_random_training_sample()
             augmented = self.augmentor(image=x, mask=y)
-            batchX += [self.preprocess_input(augmented["image"])]
-            batchY += [augmented["mask"]]
-        loss_metrics = self.model.train_on_batch(
-            np.asarray(batchX, dtype="float32"), np.asarray(batchY, dtype="float32")
-        )
+            # Channel first to last
+            x_aug = np.moveaxis(self.preprocess_input(augmented["image"]), 0, 2)
+            y_aug = np.moveaxis(augmented["mask"])
+            batchX += [x_aug]
+            batchY += [y_aug]
+        
+        loss_metrics = self.train_on_batch(batchX, batchY)
+        
         return loss_metrics
 
     def load_input_image(self, folder, sample_name):
@@ -437,7 +440,7 @@ class InteractiveTrainer:
 
     def save_model(self, label="latest"):
         os.makedirs(self.model_dir, exist_ok=True)
-        self.model.save(os.path.join(self.model_dir, f"model_{label}.h5"))
+        self.save(os.path.join(self.model_dir, f"model_{label}.h5"))
         with open(os.path.join(self.model_dir, f"reports_{label}.json"), "w") as f:
             json.dump(self.reports, f)
 
@@ -539,14 +542,6 @@ class InteractiveTrainer:
 
     def get_prediction_result(self):
         return self._prediction_result
-
-    def predict(self, image):
-        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
-        mask[0, :, :, 0] = 0
-        labels = np.flipud(label_cell2(mask[0, :, :, :]))
-        # simplify_tol is removed, otherwise, some coordinates will be empty
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
-        return geojson, mask[0, :, :, :]
 
     def plot_augmentations_async(self):
         self._plot_augmentations_result = None
