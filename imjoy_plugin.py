@@ -74,7 +74,7 @@ class ImJoyPlugin:
                 api.showMessage(str(e))
             finally:
                 self.viewer.set_loader(False)
-        
+
         self.viewer.set_timeout(check_augmentations, 1000)
 
     async def predict(self):
@@ -247,10 +247,10 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             self.current_annotation,
             target_folder="train",
-            prediction=self._mask_prediction
+            prediction=self._mask_prediction,
         )
         self._mask_prediction = None
-        #api.showMessage("Sample moved to the training set")
+        # api.showMessage("Sample moved to the training set")
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
@@ -262,7 +262,7 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             self.current_annotation,
             target_folder="valid",
-            prediction=self._mask_prediction
+            prediction=self._mask_prediction,
         )
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
@@ -279,7 +279,9 @@ class ImJoyPlugin:
         return samples
 
     async def run(self, ctx):
-        self.viewer = await api.createWindow(src="https://kaibu.org/#/app", fullscreen=True)
+        self.viewer = await api.createWindow(
+            src="https://kaibu.org/#/app", fullscreen=True
+        )
         self.viewer.set_loader(True)
 
         async def node_dbclick_callback(node):
@@ -329,7 +331,11 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {"type": "button", "label": "Predict", "callback": self.predict,},
+                    {
+                        "type": "button",
+                        "label": "Predict",
+                        "callback": self.predict,
+                    },
                     {
                         "type": "button",
                         "label": "Fetch the Mask",
