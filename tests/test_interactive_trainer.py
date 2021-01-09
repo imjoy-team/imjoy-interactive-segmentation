@@ -12,6 +12,7 @@ from models.interactive_cellpose import CellPoseInteractiveModel
 
 model = CellPoseInteractiveModel(
     "./data/hpa_dataset_v2/__models__",
+    use_gpu=False,
     channels=[2, 3],
     style_on=0,
     default_diameter=100,

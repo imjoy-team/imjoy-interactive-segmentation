@@ -43,6 +43,7 @@ class CellPoseInteractiveModel:
             residual_on=residual_on,
             style_on=style_on,
             concatenation=0,
+            disable_mkldnn=True,
         )
         os.makedirs(self.model_dir, exist_ok=True)
         # load pretrained model weights if not specified
