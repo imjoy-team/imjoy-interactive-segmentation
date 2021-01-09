@@ -14,7 +14,7 @@ from models.interactive_cellpose import CellPoseInteractiveModel
 
 model = CellPoseInteractiveModel(
     "./data/hpa_dataset_v2/__models__",
-    use_gpu=False,
+    # use_gpu=False,
     channels=[2, 3],
     style_on=0,
     default_diameter=100,
@@ -27,7 +27,7 @@ trainer = InteractiveTrainer.get_instance(
     ["microtubules.png", "er.png", "nuclei.png"],
     object_name="cell",
     scale_factor=1.0,
-    batch_size=1,
+    batch_size=2,
     resume=False,
 )
 
@@ -48,11 +48,14 @@ def test_workflow():
     val_name = "30609_1240_G3_4"
     val_sample = trainer.get_sample("valid", val_name)
     history = []
-    for i in range(101):
+    data_size = []
+    iter_size = 3000
+    for i in range(iter_size):
         loss = trainer.train_once()
         print(loss, len(trainer.sample_pool))
         history += [loss]
-        if i % 10 == 0:
+        data_size += [len(trainer.sample_pool)]
+        if i % 50 == 0:
             geojson, mask = trainer.predict(val_sample[0])
             mask = np.clip(mask > 0 * 255, 0, 255).astype("uint8")
             imwrite(f"./data/hpa_dataset_v2/{val_name}_epoch_{i}.png", mask)
@@ -73,8 +76,15 @@ def test_workflow():
 
     import matplotlib.pyplot as plt
 
-    plt.plot(range(101), history)
-    plt.savefig("./data/hpa_dataset_v2/test_history.png")
+    fig, ax = plt.subplots()
+    ax.plot(range(iter_size), history, color="red")
+    ax.set_xlabel("Iteration", fontsize=14)
+    ax.set_ylabel("Loss", color="red", fontsize=14)
+    ax2 = ax.twinx()
+    ax2.plot(range(iter_size), data_size, color="blue")
+    ax2.set_ylabel("Training size", color="blue", fontsize=14)
+    # save the plot as a file
+    plt.savefig("./data/hpa_dataset_v2/test_history.png", dpi=100, bbox_inches="tight")
 
 
 if __name__ == "__main__":
