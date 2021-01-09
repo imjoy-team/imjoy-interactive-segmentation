@@ -48,13 +48,11 @@ def masks_to_annotation(datasets_dir, save_path):
             )
 
 
-def gen_mask_from_geojson(
-    files_proc,
-    masks_to_create_value=["filled", "edge", "distance", "weigthed", "border_mask"],
+def geojson_to_masks(
+    file_proc,
+    mask_types=["filled", "edge", "labels"],
     img_size=None,
-    infer=False,
 ):
-    masks_to_create = {}
 
     # annot_types = list(masks_to_create.keys())
 
@@ -66,137 +64,54 @@ def gen_mask_from_geojson(
     weightedEdgeMasks = annotationUtils.WeightedEdgeMaskGenerator(sigma=8, w0=10)
     distMapMasks = annotationUtils.DistanceMapGenerator(truncate_distance=None)
 
-    # %% Loop over all files
-    for i, file_proc in enumerate(files_proc):
-        print("PROCESSING FILE:")
-        print(file_proc)
+    # Decompose file name
+    drive, path_and_file = os.path.splitdrive(file_proc)
+    path, file = os.path.split(path_and_file)
+    # file_base, ext = os.path.splitext(file)
 
-        # Decompose file name
-        drive, path_and_file = os.path.splitdrive(file_proc)
-        path, file = os.path.split(path_and_file)
-        # file_base, ext = os.path.splitext(file)
+    # Read annotation:  Correct class has been selected based on annot_type
+    annot_dict_all, roi_size_all, image_size = annotationsImporter.load(file_proc)
+    if img_size is not None:
+        image_size = img_size
 
-        # Read annotation:  Correct class has been selected based on annot_type
-        annot_dict_all, roi_size_all, image_size = annotationsImporter.load(file_proc)
-        if img_size is not None:
-            image_size = img_size
-
-        annot_types = set(
-            annot_dict_all[k]["properties"]["label"] for k in annot_dict_all.keys()
+    annot_types = set(
+        annot_dict_all[k]["properties"]["label"] for k in annot_dict_all.keys()
+    )
+    masks = {}
+    for annot_type in annot_types:
+        # print("annot_type: ", annot_type)
+        # Filter the annotations by label
+        annot_dict = {
+            k: annot_dict_all[k]
+            for k in annot_dict_all.keys()
+            if annot_dict_all[k]["properties"]["label"] == annot_type
+        }
+        # Create masks
+        # Binary - is always necessary to creat other masks
+        binaryMasks = annotationUtils.BinaryMaskGenerator(
+            image_size=image_size, erose_size=5, obj_size_rem=500, save_indiv=True
         )
-        print("annot_types: ", annot_types)
+        mask_dict = binaryMasks.generate(annot_dict)
 
-        for annot_type in annot_types:
-            if infer:
-                file_name_save = os.path.join(
-                    drive, path, annot_type + "_filled_output.png"
-                )
-            else:
-                file_name_save = os.path.join(drive, path, annot_type + "_filled.png")
-            if os.path.exists(file_name_save):
-                print("skip to generate mask:", file_name_save)
-                continue
-            # print("annot_type: ", annot_type)
-            masks_to_create[annot_type] = masks_to_create_value
+        # Distance map
+        if "distance" in mask_types:
+            mask_dict = distMapMasks.generate(annot_dict, mask_dict)
 
-            # Filter the annotations by label
-            annot_dict = {
-                k: annot_dict_all[k]
-                for k in annot_dict_all.keys()
-                if annot_dict_all[k]["properties"]["label"] == annot_type
-            }
-            # print("len(annot_dict):", len(annot_dict))
-            # print("annot_dict.keys():", annot_dict.keys())
+        # Weighted edge mask
+        if "weigthed" in mask_types:
+            mask_dict = weightedEdgeMasks.generate(annot_dict, mask_dict)
 
-            # Create masks
-
-            # Binary - is always necessary to creat other masks
-            print(" .... creating binary masks .....")
-            binaryMasks = annotationUtils.BinaryMaskGenerator(
-                image_size=image_size, erose_size=5, obj_size_rem=500, save_indiv=True
+        # border_mask
+        if "border_mask" in mask_types:
+            border_detection_threshold = max(
+                round(1.33 * image_size[0] / 512 + 0.66), 1
             )
-            mask_dict = binaryMasks.generate(annot_dict)
+            borderMasks = annotationUtils.BorderMaskGenerator(
+                border_detection_threshold=border_detection_threshold
+            )
+            mask_dict = borderMasks.generate(annot_dict, mask_dict)
 
-            # Save binary masks FILLED if specified
-            if "filled" in masks_to_create[annot_type]:
-                if infer:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_filled_output.png"
-                    )
-                else:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_filled.png"
-                    )
-                masks.save(mask_dict, "fill", file_name_save)
-
-            # Edge mask
-            if "edge" in masks_to_create[annot_type]:
-                if infer:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_edge_output.png"
-                    )
-                else:
-                    file_name_save = os.path.join(drive, path, annot_type + "_edge.png")
-                masks.save(mask_dict, "edge", file_name_save)
-
-            # Distance map
-            if "distance" in masks_to_create[annot_type]:
-                print(" .... creating distance maps .....")
-                mask_dict = distMapMasks.generate(annot_dict, mask_dict)
-
-                # Save
-                if infer:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_distmap_output.png"
-                    )
-                else:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_distmap.png"
-                    )
-                masks.save(mask_dict, "distance_map", file_name_save)
-
-            # Weighted edge mask
-            if "weigthed" in masks_to_create[annot_type]:
-                print(" .... creating weighted edge masks .....")
-                mask_dict = weightedEdgeMasks.generate(annot_dict, mask_dict)
-
-                # Save
-                if infer:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_edgeweight_output.png"
-                    )
-                else:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_edgeweight.png"
-                    )
-                masks.save(mask_dict, "edge_weighted", file_name_save)
-
-            # border_mask
-            if "border_mask" in masks_to_create[annot_type]:
-                print(" .... creating border masks .....")
-                border_detection_threshold = max(
-                    round(1.33 * image_size[0] / 512 + 0.66), 1
-                )
-                borderMasks = annotationUtils.BorderMaskGenerator(
-                    border_detection_threshold=border_detection_threshold
-                )
-                mask_dict = borderMasks.generate(annot_dict, mask_dict)
-
-                # Save
-                if infer:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_border_mask_output.png"
-                    )
-                else:
-                    file_name_save = os.path.join(
-                        drive, path, annot_type + "_border_mask.png"
-                    )
-                cv2.imwrite(
-                    file_name_save,
-                    mask_dict["border_mask"],
-                    [cv2.IMWRITE_PNG_COMPRESSION, 9],
-                )
-    print(" .... binary masks created .....")
+    return mask_dict
 
 
 if __name__ == "__main__":
