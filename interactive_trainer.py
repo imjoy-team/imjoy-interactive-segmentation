@@ -199,8 +199,12 @@ class InteractiveTrainer:
         self.training_config = {"save_freq": 200}
         self._initialized = True
         try:
-            asyncio.get_running_loop()
-            asyncio.create_task(self.start_training_loop())
+            if sys.version_info < (3, 7):
+                self.loop = asyncio.get_event_loop()
+                asyncio.ensure_future(self.start_training_loop())
+            else:
+                asyncio.get_running_loop()
+                asyncio.create_task(self.start_training_loop())
         except RuntimeError:
             asyncio.run(self.start_training_loop())
 
@@ -316,8 +320,12 @@ class InteractiveTrainer:
         logger.info("starting training")
         if not self._training_loop_running:
             try:
-                asyncio.get_running_loop()
-                asyncio.create_task(self.start_training_loop())
+                if sys.version_info < (3, 7):
+                self.loop = asyncio.get_event_loop()
+                asyncio.ensure_future(self.start_training_loop())
+                else:
+                    asyncio.get_running_loop()
+                    asyncio.create_task(self.start_training_loop())
             except RuntimeError:
                 asyncio.run(self.start_training_loop())
         self.queue.sync_q.put({"type": "start"})
