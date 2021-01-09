@@ -5,7 +5,7 @@ read_roi
 palettable
 descartes
 imageio
-numpy==1.18.0
+numpy>=1.18.0
 tensorflow==2.3.1
 albumentations
 ipykernel
