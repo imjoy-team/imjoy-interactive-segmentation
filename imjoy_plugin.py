@@ -51,7 +51,7 @@ class ImJoyPlugin:
         self.current_sample_info = info
         self.current_image = image
         self.image_layer = await self.viewer.view_image(
-            (byte_scale(image) * 255).astype("uint8"),
+            (byte_scale(image)).astype("uint8"),
             type="itk-vtk",
             name=self.current_sample_info["name"],
         )
