@@ -114,6 +114,20 @@ class CellPoseInteractiveModel:
         return flows.transpose(1, 2, 0)
 
     def augment(self, images, labels):
+        """augment the images and labels
+        Parameters
+        --------------
+        images: array [batch_size, width, height, channel]
+            a batch of input images
+
+        labels: array [batch_size, width, height, channel]
+            a batch of labels
+
+        Returns
+        ------------------
+        (images, labels) both are: array [batch_size, width, height, channel]
+            augmented images and labels
+        """
         images = [images[i].transpose(2, 0, 1) for i in range(images.shape[0])]
         labels = [labels[i].transpose(2, 0, 1) for i in range(labels.shape[0])]
 

@@ -19,6 +19,23 @@ class InteractiveModel:
         """
         raise NotImplementedError
 
+    def augment(self, images, labels):
+        """augment the images and labels
+        Parameters
+        --------------
+        images: array [batch_size, width, height, channel]
+            a batch of input images
+
+        labels: array [batch_size, width, height, channel]
+            a batch of labels
+
+        Returns
+        ------------------
+        (images, labels) both are: array [batch_size, width, height, channel]
+            augmented images and labels
+        """
+        raise NotImplementedError
+
     def train_on_batch(self, X, y):
         """train the model for one iteration
         Parameters
