@@ -7,27 +7,24 @@ import json
 import time
 import traceback
 import warnings
-import tensorflow as tf
 import albumentations as A
+
 import numpy as np
 from tqdm import tqdm
 import imageio
 from skimage import measure, morphology
 from skimage.transform import rescale
 
-from imgseg.geojson_utils import gen_mask_from_geojson
+from imgseg.geojson_utils import geojson_to_masks
 from data_utils import mask_to_geojson
 from imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
 import json
+from models.interactive_cellpose import CellPoseInteractiveModel
 
 from data_utils import plot_images
 
-os.environ["SM_FRAMEWORK"] = "tf.keras"
-import segmentation_models as sm
-from segmentation_models.base import Loss
-from segmentation_models.base import functional as F
 
 os.makedirs("data", exist_ok=True)
 logging.basicConfig(
@@ -41,119 +38,6 @@ logging.basicConfig(
 
 logger = logging.getLogger("interactive-trainer." + __name__)
 
-SMOOTH = 1e-5
-
-
-class BCEJaccardLoss(Loss):
-    def __init__(
-        self,
-        beta=1,
-        class_weights=None,
-        class_indexes=None,
-        per_image=False,
-        smooth=SMOOTH,
-    ):
-        super().__init__(name="bce_jaccard_loss")
-        self.class_weights = class_weights if class_weights is not None else 1
-        self.class_indexes = class_indexes
-        self.per_image = per_image
-        self.smooth = smooth
-        self.beta = beta
-
-    def dice_loss(self, gt, pr):
-        return 1 - F.f_score(
-            gt,
-            pr,
-            beta=self.beta,
-            class_weights=self.class_weights,
-            class_indexes=self.class_indexes,
-            smooth=self.smooth,
-            per_image=self.per_image,
-            threshold=None,
-            **self.submodules,
-        )
-
-    def jacacard_loss(self, gt, pr):
-        return 1 - F.iou_score(
-            gt,
-            pr,
-            class_weights=self.class_weights,
-            class_indexes=self.class_indexes,
-            smooth=self.smooth,
-            per_image=self.per_image,
-            threshold=None,
-            **self.submodules,
-        )
-
-    def __call__(self, gt, pr):
-        # blue channel
-        ce_body = F.binary_crossentropy(
-            gt[:, :, :, 2:3], pr[:, :, :, 2:3], **self.submodules
-        )
-        # green channel
-        ce_border = F.binary_crossentropy(
-            gt[:, :, :, 1:2], pr[:, :, :, 1:2], **self.submodules
-        )
-
-        dice_body = self.dice_loss(gt[:, :, :, 2:3], pr[:, :, :, 2:3])
-        dice_border = self.dice_loss(gt[:, :, :, 1:2], pr[:, :, :, 1:2])
-        return 0.6 * (ce_body + ce_border) + 0.2 * (dice_body + dice_border)
-
-
-def zero_mean_unit_var(x):
-    xm = x.mean()
-    return (x - x.mean()) / x.std()
-
-
-def load_unet_model(model_path=None, backbone="mobilenetv2"):
-    # disable warnings temporary
-    warnings.filterwarnings("ignore")
-
-    # preprocess_input = sm.get_preprocessing(backbone)
-
-    if model_path:
-        logger.info("model loaded from %s", model_path)
-        model = tf.keras.models.load_model(model_path, compile=False)
-    else:
-        # define model
-        model = sm.Unet(
-            backbone,
-            encoder_weights="imagenet",
-            classes=3,
-            activation="sigmoid",
-            layers=tf.keras.layers,
-            models=tf.keras.models,
-            backend=tf.keras.backend,
-            utils=tf.keras.utils,
-        )
-        logger.info("model built from scratch, backbone: %s", backbone)
-
-    model.compile("Adam", loss=BCEJaccardLoss())
-
-    warnings.resetwarnings()
-    return model, zero_mean_unit_var
-
-
-def get_augmentor(target_size=128):
-    crop_size = int(target_size * 1.415)
-    return A.Compose(
-        [
-            A.RandomSizedCrop(
-                [int(crop_size * 0.8), int(crop_size * 1.2)], crop_size, crop_size
-            ),
-            A.VerticalFlip(p=0.5),
-            A.Rotate(limit=180, p=1),
-            A.CenterCrop(target_size, target_size),
-            A.OneOf(
-                [
-                    A.RandomBrightnessContrast(p=0.5),
-                    A.RandomGamma(p=0.5),
-                ],
-                p=0.1,
-            ),
-        ]
-    )
-
 
 def byte_scale(img):
     if img.dtype == np.dtype(np.uint16):
@@ -162,7 +46,7 @@ def byte_scale(img):
     elif img.dtype == np.dtype(np.float32) or img.dtype == np.dtype(np.float64):
         img = (img * 255).round()
     elif img.dtype != np.dtype(np.uint8):
-        raise Exception("Invalid image dtype " + img.dtype)
+        raise Exception("Invalid image dtype " + str(img.dtype))
     return img
 
 
@@ -193,12 +77,14 @@ def load_image(img_path, channels, scale_factor):
         if imgs[i] is None:
             imgs[i] = np.zeros_like(last_img)
 
-    normalized = byte_scale(np.stack(imgs, axis=2)) / 255.0
+    # normalized = byte_scale(np.stack(imgs, axis=2)) / 255.0
 
-    return normalized.astype("float32")
+    # return normalized.astype("float32")
+
+    return np.stack(imgs, axis=2)
 
 
-def load_sample_pool(data_dir, folder, input_channels, target_channels, scale_factor):
+def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_labels):
     sample_list = [
         name
         for name in os.listdir(os.path.join(data_dir, folder))
@@ -206,14 +92,24 @@ def load_sample_pool(data_dir, folder, input_channels, target_channels, scale_fa
     ]
     sample_pool = []
     logger.info(
-        "loading samples, input channels: %s, target channeles: %s",
+        "loading samples, input channels: %s",
         input_channels,
-        target_channels,
     )
     for sample_name in tqdm(sample_list):
         sample_path = os.path.join(data_dir, folder, sample_name)
+        if not all(
+            [
+                os.path.exists(os.path.join(data_dir, folder, sample_name, ch))
+                for ch in input_channels
+            ]
+        ):
+            continue
         img = load_image(sample_path, input_channels, scale_factor)
-        mask = load_image(sample_path, target_channels, scale_factor)
+
+        annotation_file = os.path.join(data_dir, folder, sample_name, "annotation.json")
+        mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+        labels = mask_dict["labels"]
+        mask = transform_labels(np.expand_dims(labels, axis=2))
         info = {"name": sample_name, "path": sample_path}
         sample_pool.append((img, mask, info))
     logger.info(
@@ -243,17 +139,17 @@ class InteractiveTrainer:
             return instance
         else:
             instance.model = None
-            tf.keras.backend.clear_session()
+
             InteractiveTrainer.__instance__ = None
             return InteractiveTrainer(*args, **kwargs)
 
     def __init__(
         self,
+        model,
         data_dir,
         input_channels,
         folder="train",
         object_name="cell",
-        mask_type="border_mask",
         batch_size=2,
         max_pool_length=30,
         min_object_size=100,
@@ -271,79 +167,52 @@ class InteractiveTrainer:
         self._training_loop_running = False
         self.training_enabled = False
         self.data_dir = data_dir
-        self.model_dir = os.path.join(self.data_dir, "__models__")
+        assert model is not None
+        self.model = model
+
         self.reports = []
-        # load latest model if exists
+
         if resume:
-            if resume == True:
-                label = "latest"
-            else:
-                label = resume
-            checkpoint = os.path.join(self.model_dir, f"model_{label}.h5")
-            # only complain error if resume was set to a specific label
-            if resume != True and not os.path.exists(checkpoint):
-                raise Exception(
-                    f"checkpoint file not found: {checkpoint}, if you want to start from scratch, please set resume to False."
-                )
-            elif not os.path.exists(checkpoint):
-                checkpoint = None
-            report_path = os.path.join(self.model_dir, f"reports_{label}.json")
-            if os.path.exists(report_path):
-                with open(report_path, "r") as f:
-                    self.reports = json.load(f)
-        else:
-            checkpoint = None
-        self.model, self.preprocess_input = load_unet_model(checkpoint)
-        self.class_weight = {0: 0.0, 1: 100.0, 2: 1.0}
+            resume_weights_path = os.path.join(self.model.model_dir, "snapshot")
+            if os.path.exists(resume_weights_path):
+                print("Resuming model from " + resume_weights_path)
+                self.model.load(resume_weights_path)
+
         self.object_name = object_name
-        self.mask_type = mask_type
         self.input_channels = input_channels
-        self.target_channels = [f"{self.object_name}_{self.mask_type}.png"]
         self.scale_factor = scale_factor
-        self.queue = janus.Queue()
+
         self.sample_pool = load_sample_pool(
             data_dir,
             folder,
             input_channels,
-            self.target_channels,
             self.scale_factor,
+            self.model.transform_labels,
         )
-        _img, _mask, _info = self.sample_pool[0]
-        assert (
-            _img.shape[2] == self.model.input_shape[3]
-        ), f"shape mismatch: { _img.shape[2] } != {self.model.input_shape[3]}"
-        assert (
-            _mask.shape[2] == self.model.output_shape[3]
-        ), f"shape mismatch: { _mask.shape[2] } != {self.model.output_shape[3]}"
+        # _img, _mask, _info = self.sample_pool[0]
 
-        min_size = min(_img.shape[0], _img.shape[1])
-        if min_size >= 512:
-            training_size = 256
-        elif min_size >= 256:
-            training_size = 128
-        else:
-            raise Exception(
-                f"invalid input image size: {min_size}, it should not smaller than 256x256"
-            )
-
-        self.augmentor = get_augmentor(target_size=training_size)
         self.batch_size = batch_size
-
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
-        if sys.version_info < (3, 7):
-            self.loop = asyncio.get_event_loop()
-        else:
-            self.loop = asyncio.get_running_loop()
+
         self.training_config = {"save_freq": 200}
-        self.start_training_loop()
         self._initialized = True
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(self.start_training_loop())
+        except RuntimeError:
+            asyncio.run(self.start_training_loop())
 
     def get_error(self):
         return self._training_error
 
-    def start_training_loop(self):
+    async def start_training_loop(self):
+        self.queue = janus.Queue()
+        if sys.version_info < (3, 7):
+            self.loop = asyncio.get_event_loop()
+        else:
+            self.loop = asyncio.get_running_loop()
         self.loop.run_in_executor(
             None,
             self._training_loop,
@@ -357,11 +226,14 @@ class InteractiveTrainer:
         batchY = []
         for i in range(self.batch_size):
             x, y, info = self.get_random_training_sample()
-            augmented = self.augmentor(image=x, mask=y)
-            batchX += [self.preprocess_input(augmented["image"])]
-            batchY += [augmented["mask"]]
+            batchX += [x]
+            batchY += [y]
+            # augmented = self.augmentor(image=x, mask=y)
+            # batchX += [augmented["image"]]
+            # batchY += [augmented["mask"]]
         loss_metrics = self.model.train_on_batch(
-            np.asarray(batchX, dtype="float32"), np.asarray(batchY, dtype="float32")
+            np.asarray(batchX, dtype=batchX[0].dtype),
+            np.asarray(batchY, dtype=batchY[0].dtype),
         )
         return loss_metrics
 
@@ -374,10 +246,8 @@ class InteractiveTrainer:
         return img
 
     def load_target_image(self, folder, sample_name):
-        img = load_image(
-            os.path.join(self.data_dir, folder, sample_name),
-            self.target_channels,
-            self.scale_factor,
+        img = self.model.generate_mask(
+            os.path.join(self.data_dir, folder, sample_name, "annotation.json")
         )
         return img
 
@@ -389,14 +259,17 @@ class InteractiveTrainer:
             iteration = 0
         self._training_loop_running = True
         self._training_error = None
+        self._exit = False
         while True:
             try:
                 try:
+                    if self._exit:
+                        break
                     task = sync_q.get_nowait()
                     if task["type"] == "stop":
                         if self.training_enabled:
                             self.training_enabled = False
-                            self.save_model()
+                            self.model.save(os.path.join(self.model.model_dir, "final"))
                     elif task["type"] == "start":
                         self.training_enabled = True
                     elif task["type"] == "predict":
@@ -423,7 +296,7 @@ class InteractiveTrainer:
                         }
                     )
                     if iteration % training_config["save_freq"] == 0:
-                        self.save_model()
+                        self.model.save(os.path.join(self.model.model_dir, "snapshot"))
                     # logger.info('trained for 1 iteration %s', reports[-1])
                 else:
                     time.sleep(0.1)
@@ -434,18 +307,21 @@ class InteractiveTrainer:
                 logger.error("training loop exited with error: %s", e)
                 break
         self._training_loop_running = False
-
-    def save_model(self, label="latest"):
-        os.makedirs(self.model_dir, exist_ok=True)
-        self.model.save(os.path.join(self.model_dir, f"model_{label}.h5"))
-        with open(os.path.join(self.model_dir, f"reports_{label}.json"), "w") as f:
-            json.dump(self.reports, f)
+        time.sleep(1)
 
     def start(self):
         logger.info("starting training")
         if not self._training_loop_running:
-            self.start_training_loop()
+            try:
+                asyncio.get_running_loop()
+                asyncio.create_task(self.start_training_loop())
+            except RuntimeError:
+                asyncio.run(self.start_training_loop())
         self.queue.sync_q.put({"type": "start"})
+
+    def exit(self):
+        logger.info("Exiting")
+        self._exit = True
 
     def stop(self):
         logger.info("stopping training")
@@ -494,37 +370,30 @@ class InteractiveTrainer:
         ) as f:
             json.dump(geojson_annotation, f)
 
-        files = [os.path.join(sample_dir, "annotation.json")]
-        gen_mask_from_geojson(files, masks_to_create_value=[self.mask_type])
         new_sample_dir = os.path.join(self.data_dir, target_folder, sample_name)
         shutil.move(sample_dir, new_sample_dir)
 
         if target_folder == "train":
             # get mask_diff
             # prediction = imageio.imread(os.path.join(new_sample_dir, # "prediction.png"))
-            prediction = prediction.astype("int32")
-            mask = imageio.imread(
-                os.path.join(
-                    new_sample_dir, self.object_name + "_" + self.mask_type + ".png"
-                )
-            )
-            mask = mask.astype("int32")
-            mask_diff = np.abs(mask - prediction)
-            mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
-            mask_diff = np.clip(mask_diff, 0, 255)
-            mask_diff = mask_diff.astype("uint8")
-            mask_diff = rescale(
-                mask_diff,
-                self.scale_factor,
-                multichannel=(img.ndim == 3),
-                anti_aliasing=True,
-            )
-            mask_diff = mask_diff.astype("float32")
-            mask_diff = mask_diff / mask_diff.max()
+            # prediction = prediction.astype("int32")
+            # mask = self.model.generate_mask(os.path.join(sample_dir, "annotation.json"))
+            # mask_diff = np.abs(mask - prediction)
+            # mask_diff = mask_diff[..., 1] + mask_diff[..., 2]
+            # mask_diff = np.clip(mask_diff, 0, 255)
+            # mask_diff = mask_diff.astype("uint8")
+            # mask_diff = rescale(
+            #     mask_diff,
+            #     self.scale_factor,
+            #     multichannel=(img.ndim == 3),
+            #     anti_aliasing=True,
+            # )
+            # mask_diff = mask_diff.astype("float32")
+            # mask_diff = mask_diff / mask_diff.max()
 
             img = self.load_input_image(target_folder, sample_name)
             mask = self.load_target_image(target_folder, sample_name)
-            mask[..., 0] = mask_diff
+            # mask[..., 0] = mask_diff
 
             self.sample_pool.append(
                 (img, mask, {"name": sample_name, "path": new_sample_dir})
@@ -541,12 +410,12 @@ class InteractiveTrainer:
         return self._prediction_result
 
     def predict(self, image):
-        mask = self.model.predict(self.preprocess_input(np.expand_dims(image, axis=0)))
-        mask[0, :, :, 0] = 0
-        labels = np.flipud(label_cell2(mask[0, :, :, :]))
-        # simplify_tol is removed, otherwise, some coordinates will be empty
-        geojson = mask_to_geojson(labels, label=self.object_name, simplify_tol=None)
-        return geojson, mask[0, :, :, :]
+        labels = self.model.predict(np.expand_dims(image, axis=0))
+        labels = labels[0, :, :, 0]
+        geojson_features = mask_to_geojson(
+            np.flipud(labels), label=self.object_name, simplify_tol=None
+        )
+        return geojson_features, labels
 
     def plot_augmentations_async(self):
         self._plot_augmentations_result = None
@@ -560,7 +429,7 @@ class InteractiveTrainer:
         batchY = []
         x, y, _ = self.get_random_training_sample()
         for i in range(4):
-            augmented = self.augmentor(image=x, mask=y)
-            batchX += [augmented["image"]]
-            batchY += [augmented["mask"]]
+            x_, y_ = self.model.augment(x, y)
+            batchX += [x_]
+            batchY += [y_]
         return plot_images(batchX, batchY, x, y)

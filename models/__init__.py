@@ -5,19 +5,33 @@ class InteractiveModel:
         """load and initialize the model"""
         pass
 
+    def transform_labels(self, label_image):
+        """transform the labels which will be used as training target
+        Parameters
+        --------------
+        label_image: array [width, height, channel]
+            a label image
+
+        Returns
+        ------------------
+        array [width, height, channel]
+            the transformed label image
+        """
+        raise NotImplementedError
+
     def train_on_batch(self, X, y):
         """train the model for one iteration
         Parameters
         --------------
-        X: array [batch_size, channel, width, height]
-            the input image with 2 channels
+        X: array [batch_size, width, height, channel]
+            a batch of input images
 
-        y: array [batch_size, channel, width, height]
-
+        y: array [batch_size, width, height, channel]
+            a batch of labels
 
         Returns
         ------------------
-        None
+        loss value
         """
         raise NotImplementedError
 
@@ -25,12 +39,12 @@ class InteractiveModel:
         """predict the model for one input image
         Parameters
         --------------
-        X: array [channel, width, height]
-            the input image with 2 channels
+        X: array [batch_size, width, height, channel]
+            a batch of input image
 
         Returns
         ------------------
-        y_predict: the predicted label image
+        the predicted label image
         """
         raise NotImplementedError
 
@@ -38,8 +52,21 @@ class InteractiveModel:
         """save the model
         Parameters
         --------------
-        model_path: string
-            the file path to the model
+        file_path: string
+            the model file path
+
+        Returns
+        ------------------
+        None
+        """
+        raise NotImplementedError
+
+    def load(self, file_path):
+        """load the model
+        Parameters
+        --------------
+        file_path: string
+            the model file path
 
         Returns
         ------------------

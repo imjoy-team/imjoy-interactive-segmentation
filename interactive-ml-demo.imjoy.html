@@ -27,6 +27,7 @@ import os
 from download_example_dataset import download_with_url
 from imjoy import api
 from imjoy_plugin import start_interactive_segmentation
+from models.interactive_cellpose import CellPoseInteractiveModel
 
 # download exmaple dataset
 os.makedirs("data", exist_ok=True)
@@ -42,7 +43,12 @@ else:
         + dataset_path
     )
 
-start_interactive_segmentation("./data/hpa_dataset_v2",
+model = CellPoseInteractiveModel('./data/hpa_dataset_v2/__models__',
+                                channels=[2, 3],
+                                style_on=0,
+                                default_diameter=100)
+start_interactive_segmentation(model,
+            "./data/hpa_dataset_v2",
             ["microtubules.png", "er.png", "nuclei.png"],
             object_name="cell",
             scale_factor=1.0,

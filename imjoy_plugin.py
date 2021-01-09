@@ -3,12 +3,16 @@ import io
 import time
 import numpy as np
 import json
+import asyncio
+import traceback
 from imageio import imread, imwrite
 from data_utils import plot_images
 from imjoy import api
 
-from interactive_trainer import InteractiveTrainer
-import asyncio
+
+from interactive_trainer import InteractiveTrainer, byte_scale
+
+from imgseg.geojson_utils import geojson_to_masks
 
 
 class ImJoyPlugin:
@@ -47,7 +51,7 @@ class ImJoyPlugin:
         self.current_sample_info = info
         self.current_image = image
         self.image_layer = await self.viewer.view_image(
-            (image * 255).astype("uint8"),
+            (byte_scale(image) * 255).astype("uint8"),
             type="itk-vtk",
             name=self.current_sample_info["name"],
         )
@@ -95,7 +99,7 @@ class ImJoyPlugin:
             try:
                 self.viewer.set_loader(True)
                 polygons, mask = result
-                mask = np.clip(mask * 255, 0, 255).astype("uint8")
+                mask = ((mask > 0) * 255).astype("uint8")
                 # imwrite(
                 #     os.path.join(self.current_sample_info["path"], "prediction.png"),
                 #     mask,
@@ -108,6 +112,7 @@ class ImJoyPlugin:
                     type="itk-vtk",
                     name=self._trainer.object_name + "_mask",
                     opacity=0.5,
+                    visible=False,
                 )
                 self.viewer.set_loader(False)
                 if len(polygons) > 0:
@@ -123,6 +128,7 @@ class ImJoyPlugin:
                 else:
                     api.showMessage("No object detected.")
             except Exception as e:
+                api.error(traceback.format_exc())
                 api.showMessage(str(e))
             finally:
                 self.viewer.set_loader(False)
@@ -134,13 +140,14 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
+        annotation_file = os.path.join(
+            self._trainer.data_dir,
+            "test",
+            self.current_sample_info["name"],
+            "annotation.json",
+        )
         with io.open(
-            os.path.join(
-                self._trainer.data_dir,
-                "test",
-                self.current_sample_info["name"],
-                "annotation.json",
-            ),
+            annotation_file,
             "r",
             encoding="utf-8-sig",
         ) as myfile:
@@ -171,17 +178,9 @@ class ImJoyPlugin:
                 polygons["features"],
             )
         )
-        mask_file_name = (
-            self._trainer.object_name + "_" + self._trainer.mask_type + ".png"
-        )
-        mask = imread(
-            os.path.join(
-                self._trainer.data_dir,
-                "test",
-                self.current_sample_info["name"],
-                mask_file_name,
-            )
-        )
+        mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+        labels = mask_dict["labels"]
+        mask = ((labels > 0) * 255).astype("uint8")
 
         self.current_annotation = polygons
         if len(polygons) > 0:

@@ -157,7 +157,7 @@ class GeojsonImporter(AnnotationImporter):
                 ]
             )
 
-        print("Skipped geometry type(s):", skipped)
+        # print("Skipped geometry type(s):", skipped)
         return annot_dict, roi_size_all, self.image_size
 
 

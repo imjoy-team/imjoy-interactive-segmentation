@@ -45,8 +45,20 @@ python download_example_dataset.py
 Create a jupyter notebook and run the followin code in a cell:
 ```python
 from imjoy_plugin import start_interactive_segmentation
+from models.interactive_cellpose import CellPoseInteractiveModel
 
-start_interactive_segmentation("./data/hpa_dataset_v2", ["microtubules.png", "er.png", "nuclei.png"], object_name="cell", scale_factor=0.5, resume=True)
+model = CellPoseInteractiveModel('./data/hpa_dataset_v2/__models__',
+                                 channels=[2, 3],
+                                 style_on=0,
+                                 default_diameter=100)
+
+start_interactive_segmentation(model,
+                               "./data/hpa_dataset_v2",
+                               ["microtubules.png", "er.png", "nuclei.png"],
+                               mask_type="labels",
+                               object_name="cell",
+                               scale_factor=1.0,
+                               resume=True)
 ```
 
 We also made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**

@@ -5,6 +5,7 @@ import numpy as np
 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from imgseg.geojson_utils import geojson_to_masks
 
 import cellpose
 from models.interactive_cellpose import CellPoseInteractiveModel
@@ -35,21 +36,31 @@ image_filter = "er.png,nuclei.png"
 geojson_to_label(annotation_file, save_as="_masks.png")
 
 # read the input image
-X = read_multi_channel_image(folder, channels, rescale=1.0)
+X = (read_multi_channel_image(folder, channels, rescale=1.0)).transpose(1, 2, 0)
+
+model = CellPoseInteractiveModel(
+    "./data/hpa_dataset_v2/__models__", style_on=0, default_diameter=100
+)
+
 
 # read the labels
-y = read_image(folder + "/cell_masks.png", rescale=1.0)
+
+labels = cellpose.io.imread(folder + "/cell_masks.png")
+y = model.transform_labels(np.expand_dims(labels, axis=2))
 
 
-model = CellPoseInteractiveModel(style_on=0, default_diameter=100)
-
-
-def test_train_once():
+def test_train_on_batch():
     global X, y
-    assert y.shape[1:] == (512, 512)
+    assert y.shape[:2] == (512, 512)
     X = np.expand_dims(X, axis=0)
     y = np.expand_dims(y, axis=0)
     model.train_on_batch(X, y)
+
+
+def test_transform_labels():
+    mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+    labels = mask_dict["labels"]
+    flows = model.transform_labels(np.expand_dims(labels, axis=2))
 
 
 def test_train():
@@ -93,10 +104,12 @@ def test_train_steps():
 
 
 def test_predict():
-    y_predict = model.predict(X)
-    assert y_predict.shape == (512, 512)
+    y_predict = model.predict(np.expand_dims(X, axis=0))
+    assert y_predict.shape == (1, 512, 512, 1), "shape of prediction {}".format(
+        y_predict.shape
+    )
     file_path = os.path.join("./data/cellpose_predicted_mask.png")
-    cellpose.io.imsave(file_path, y_predict)
+    cellpose.io.imsave(file_path, y_predict[0, :, :, 0])
     assert os.path.exists(file_path)
     # os.remove(file_path)
 
@@ -119,6 +132,7 @@ def test_save():
 if __name__ == "__main__":
     # test_train()
     # test_train_steps()
+    test_transform_labels()
     test_predict()
     test_save()
-    test_train_once()
+    test_train_on_batch()
