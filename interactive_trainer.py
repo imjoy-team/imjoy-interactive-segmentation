@@ -246,10 +246,13 @@ class InteractiveTrainer:
         return img
 
     def load_target_image(self, folder, sample_name):
-        img = self.model.generate_mask(
-            os.path.join(self.data_dir, folder, sample_name, "annotation.json")
+        annotation_file = os.path.join(
+            self.data_dir, folder, sample_name, "annotation.json"
         )
-        return img
+        mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+        labels = mask_dict["labels"]
+        mask = self.model.transform_labels(np.expand_dims(labels, axis=2))
+        return mask
 
     def _training_loop(self, sync_q, reports, training_config):
         self.training_enabled = False
