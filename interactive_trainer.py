@@ -321,8 +321,8 @@ class InteractiveTrainer:
         if not self._training_loop_running:
             try:
                 if sys.version_info < (3, 7):
-                self.loop = asyncio.get_event_loop()
-                asyncio.ensure_future(self.start_training_loop())
+                    self.loop = asyncio.get_event_loop()
+                    asyncio.ensure_future(self.start_training_loop())
                 else:
                     asyncio.get_running_loop()
                     asyncio.create_task(self.start_training_loop())
