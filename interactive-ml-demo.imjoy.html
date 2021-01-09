@@ -12,9 +12,9 @@
   "flags": [],
   "icon": "extension",
   "api_version": "0.1.8",
-  "env": [{"type": "binder", "spec": "imjoy-team/imjoy-binder-image/deep-learning", "skip_requirements": false}],
+  "env": [],
   "permissions": [],
-  "requirements": ["repo:https://github.com/imjoy-team/imjoy-interactive-segmentation", "cmd: pip install -r imjoy-interactive-segmentation/requirements.txt --no-cache-dir"],
+  "requirements": ["repo:https://github.com/imjoy-team/imjoy-interactive-segmentation", "cmd: pip install -r imjoy-interactive-segmentation/requirements.txt --no-cache-dir", "cmd: pip uninstall opencv-python -y && pip install opencv-python-headless"],
   "dependencies": []
 }
 </config>
