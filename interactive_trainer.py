@@ -442,8 +442,6 @@ class InteractiveTrainer:
                 )
                 x_ = x_3ch
             y_ = np.swapaxes(np.squeeze(y_), 0, -1)
-
-            print(x_.shape, y_.shape)
             batchX += [x_]
             batchY += [y_]
 
