@@ -4,6 +4,7 @@ import time
 import asyncio
 import threading
 import numpy as np
+from imageio import imwrite
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -24,7 +25,7 @@ trainer = InteractiveTrainer.get_instance(
     object_name="cell",
     scale_factor=1.0,
     batch_size=1,
-    resume=True,
+    resume=False,
 )
 
 
@@ -39,7 +40,13 @@ def test_predict():
     mask = np.clip(mask > 0 * 255, 0, 255).astype("uint8")
 
 
+def test_aug_plot():
+    tmp = trainer.plot_augmentations()
+    imwrite("./data/hpa_dataset_v2/test_aug.png", tmp)
+
+
 if __name__ == "__main__":
     test_train_once()
     test_predict()
+    test_aug_plot()
     os._exit(0)
