@@ -117,7 +117,7 @@ def plot_images(images, masks, original_image=None, original_mask=None):
     return fig2img(f)
 
 
-def movingaverage(interval, window_size):
+def moving_average(interval, window_size):
     window = np.ones(int(window_size)) / float(window_size)
     return np.convolve(interval, window, "same")
 
@@ -125,7 +125,9 @@ def movingaverage(interval, window_size):
 def plot_history(losses, data_size, iter_size, save_path):
     fig, ax = plt.subplots()
     ax.plot(range(iter_size), losses, color="red", alpha=0.2)
-    ax.plot(range(iter_size), movingaverage(losses, round(iter_size / 20)), color="red")
+    ax.plot(
+        range(iter_size), moving_average(losses, round(iter_size / 20)), color="red"
+    )
     ax.set_xlabel("Iteration", fontsize=14)
     ax.set_ylabel("Loss", color="red", fontsize=14)
     ax2 = ax.twinx()

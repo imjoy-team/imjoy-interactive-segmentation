@@ -10,14 +10,13 @@ from imageio import imread, imwrite
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from interactive_trainer import InteractiveTrainer
-from models.interactive_cellpose import CellPoseInteractiveModel
 from data_utils import plot_history, fig2img, plot_mask_overlay
 import cellpose
 
 model_config = dict(
     type="cellpose",
     model_dir="./data/hpa_dataset_v2/__models__",
-    use_gpu=True,
+    use_gpu=False,
     channels=[2, 3],
     style_on=0,
     default_diameter=100,
