@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from interactive_trainer import InteractiveTrainer
 from models.interactive_cellpose import CellPoseInteractiveModel
+from data_utils import plot_history
 
 model = CellPoseInteractiveModel(
     "./data/hpa_dataset_v2/__models__",
@@ -49,13 +50,13 @@ def test_workflow():
     val_sample = trainer.get_sample("valid", val_name)
     history = []
     data_size = []
-    iter_size = 3000
+    iter_size = 5000
     for i in range(iter_size):
         loss = trainer.train_once()
         print(loss, len(trainer.sample_pool))
         history += [loss]
         data_size += [len(trainer.sample_pool)]
-        if i % 50 == 0:
+        if i % 1000 == 0:
             geojson, mask = trainer.predict(val_sample[0])
             mask = np.clip(mask > 0 * 255, 0, 255).astype("uint8")
             imwrite(f"./data/hpa_dataset_v2/{val_name}_epoch_{i}.png", mask)
@@ -74,17 +75,9 @@ def test_workflow():
             if len(trainer.sample_pool) > trainer.max_pool_length:
                 trainer.sample_pool.pop(0)
 
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
-    ax.plot(range(iter_size), history, color="red")
-    ax.set_xlabel("Iteration", fontsize=14)
-    ax.set_ylabel("Loss", color="red", fontsize=14)
-    ax2 = ax.twinx()
-    ax2.plot(range(iter_size), data_size, color="blue")
-    ax2.set_ylabel("Training size", color="blue", fontsize=14)
-    # save the plot as a file
-    plt.savefig("./data/hpa_dataset_v2/test_history.png", dpi=100, bbox_inches="tight")
+    plot_history(
+        history, data_size, iter_size, "./data/hpa_dataset_v2/test_history.png"
+    )
 
 
 if __name__ == "__main__":
