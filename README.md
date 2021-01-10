@@ -45,17 +45,17 @@ python download_example_dataset.py
 Create a jupyter notebook and run the followin code in a cell:
 ```python
 from imjoy_plugin import start_interactive_segmentation
-from models.interactive_cellpose import CellPoseInteractiveModel
 
-model = CellPoseInteractiveModel(model_dir='./data/hpa_dataset_v2/__models__',
-                                 channels=[2, 3],
-                                 style_on=0,
-                                 default_diameter=100,
-                                 use_gpu=True,
-                                 pretrained_model=False,
-                                 resume=True)
+model_config = dict(type="cellpose",
+            model_dir='./data/hpa_dataset_v2/__models__',
+            channels=[2, 3],
+            style_on=0,
+            default_diameter=100,
+            use_gpu=True,
+            pretrained_model=False,
+            resume=True)
 
-start_interactive_segmentation(model,
+start_interactive_segmentation(model_config,
                                "./data/hpa_dataset_v2",
                                ["microtubules.png", "er.png", "nuclei.png"],
                                mask_type="labels",
