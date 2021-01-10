@@ -21,16 +21,15 @@ model = CellPoseInteractiveModel(
     style_on=0,
     default_diameter=100,
     pretrained_model=False,
+    resume=False,
 )
 
 trainer = InteractiveTrainer.get_instance(
-    model,
+    model_config,
     "./data/hpa_dataset_v2",
     ["microtubules.png", "er.png", "nuclei.png"],
     object_name="cell",
     scale_factor=1.0,
-    batch_size=2,
-    resume=False,
 )
 
 

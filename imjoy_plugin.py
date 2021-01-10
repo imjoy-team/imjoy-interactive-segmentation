@@ -406,9 +406,10 @@ class ImJoyPlugin:
         self.last_iteration = None
 
         async def refresh():
+            error = self._trainer.get_error(clear=True)
             if len(self._trainer.reports) > 0:
                 v = self._trainer.reports[-1]
-                error = self._trainer.get_error()
+
                 if v["iteration"] != self.last_iteration:
                     title = f'Iteration {v["iteration"]}, Loss: {v["loss"]:.4f}'
                     if not self._trainer.training_enabled:
@@ -424,11 +425,11 @@ class ImJoyPlugin:
                         await chart.set_title(f"Error: {error}")
                     else:
                         await chart.set_title("Starting...")
-                else:
-                    if error:
-                        await chart.set_title(f"Error: {error}")
-                        await api.error(f"Error: {error}")
-                        # await api.showMessage(f"Error: {error}")
+
+            if error:
+                await chart.set_title(f"Error: {error}")
+                await api.error(f"Error: {error}")
+                await api.showMessage(f"Error: {error}")
             self.viewer.set_timeout(refresh, 2000)
 
         self.viewer.set_timeout(refresh, 2000)
