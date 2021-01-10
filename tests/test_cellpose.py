@@ -39,7 +39,11 @@ geojson_to_label(annotation_file, save_as="_masks.png")
 X = (read_multi_channel_image(folder, channels, rescale=1.0)).transpose(1, 2, 0)
 
 model = CellPoseInteractiveModel(
-    "./data/hpa_dataset_v2/__models__", style_on=0, default_diameter=100
+    model_dir="./data/hpa_dataset_v2/__models__",
+    style_on=0,
+    default_diameter=100,
+    resume=False,
+    pretrained_model=False,
 )
 
 
@@ -73,7 +77,11 @@ def test_train():
         rescale=1.0,
     )
     images, labels, image_names, test_images, test_labels, image_names_test = output
-    model.train((np.stack(images, axis=0), np.stack(labels, axis=0)), (np.stack(test_images, axis=0), np.stack(test_labels, axis=0)), iterations=1)
+    model.train(
+        (np.stack(images, axis=0), np.stack(labels, axis=0)),
+        (np.stack(test_images, axis=0), np.stack(test_labels, axis=0)),
+        iterations=1,
+    )
 
 
 def test_train_steps():

@@ -21,7 +21,6 @@ from imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
 import json
-from models.interactive_cellpose import CellPoseInteractiveModel
 
 from data_utils import plot_images
 
@@ -118,6 +117,15 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
     return sample_pool
 
 
+def load_model(model_config):
+    if model_config["type"] == "cellpose":
+        from models.interactive_cellpose import CellPoseInteractiveModel
+
+        return CellPoseInteractiveModel(**model_config)
+    else:
+        raise Exception("Unsupported model type: " + model_config["type"])
+
+
 class InteractiveTrainer:
     __instance__ = None
 
@@ -145,16 +153,14 @@ class InteractiveTrainer:
 
     def __init__(
         self,
-        model,
+        model_config,
         data_dir,
         input_channels,
         folder="train",
         object_name="cell",
-        batch_size=2,
         max_pool_length=30,
         min_object_size=100,
         scale_factor=1.0,
-        resume=True,
     ):
         if InteractiveTrainer.__instance__ is None:
             InteractiveTrainer.__instance__ = self
@@ -167,16 +173,10 @@ class InteractiveTrainer:
         self._training_loop_running = False
         self.training_enabled = False
         self.data_dir = data_dir
+        model = load_model(model_config)
         assert model is not None
         self.model = model
-
         self.reports = []
-
-        if resume:
-            resume_weights_path = os.path.join(self.model.model_dir, "snapshot")
-            if os.path.exists(resume_weights_path):
-                print("Resuming model from " + resume_weights_path)
-                self.model.load(resume_weights_path)
 
         self.object_name = object_name
         self.input_channels = input_channels
@@ -191,12 +191,10 @@ class InteractiveTrainer:
         )
         # _img, _mask, _info = self.sample_pool[0]
 
-        self.batch_size = batch_size
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
 
-        self.training_config = {"save_freq": 200}
         self._initialized = True
         try:
             if sys.version_info < (3, 7):
@@ -208,8 +206,12 @@ class InteractiveTrainer:
         except RuntimeError:
             asyncio.run(self.start_training_loop())
 
-    def get_error(self):
-        return self._training_error
+    def get_error(self, clear=True):
+        error = self._training_error
+        if clear:
+            # clear error
+            self._training_error = None
+        return error
 
     async def start_training_loop(self):
         self.queue = janus.Queue()
@@ -222,13 +224,13 @@ class InteractiveTrainer:
             self._training_loop,
             self.queue.sync_q,
             self.reports,
-            self.training_config,
         )
 
     def train_once(self):
         batchX = []
         batchY = []
-        for i in range(self.batch_size):
+        config = self.model.get_config()
+        for i in range(config.get("batch_size", 1)):
             x, y, info = self.get_random_training_sample()
             batchX += [x]
             batchY += [y]
@@ -258,7 +260,7 @@ class InteractiveTrainer:
         mask = self.model.transform_labels(np.expand_dims(labels, axis=2))
         return mask
 
-    def _training_loop(self, sync_q, reports, training_config):
+    def _training_loop(self, sync_q, reports):
         self.training_enabled = False
         if len(self.reports) > 0:
             iteration = self.reports[-1]["iteration"]
@@ -302,9 +304,6 @@ class InteractiveTrainer:
                             "iteration": iteration,
                         }
                     )
-                    if iteration % training_config["save_freq"] == 0:
-                        self.model.save(os.path.join(self.model.model_dir, "snapshot"))
-                    # logger.info('trained for 1 iteration %s', reports[-1])
                 else:
                     time.sleep(0.1)
             except Exception as e:

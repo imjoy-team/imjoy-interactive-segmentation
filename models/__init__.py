@@ -1,7 +1,7 @@
 class InteractiveModel:
     """Interactive model interface"""
 
-    def __init__(self, model_path, *args, **kwargs):
+    def __init__(self, **kwargs):
         """load and initialize the model"""
         pass
 
@@ -16,6 +16,20 @@ class InteractiveModel:
         ------------------
         array [width, height, channel]
             the transformed label image
+        """
+        raise NotImplementedError
+
+    def get_config(self):
+        """augment the images and labels
+        Parameters
+        --------------
+        None
+
+        Returns
+        ------------------
+        config: dict
+            a dictionary contains the following keys:
+            1) `batch_size` the batch size for training
         """
         raise NotImplementedError
 

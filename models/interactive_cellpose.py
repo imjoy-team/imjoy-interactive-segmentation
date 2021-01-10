@@ -9,12 +9,15 @@ from cellpose import utils, models, io, transforms, dynamics
 class CellPoseInteractiveModel:
     def __init__(
         self,
-        model_dir,
+        model_dir=None,
+        type="cellpose",
+        resume=True,
         pretrained_model=None,
+        save_freq=None,
         use_gpu=True,
         diam_mean=30.0,
         residual_on=1,
-        learning_rate=0.02,
+        learning_rate=0.001,
         batch_size=2,
         channels=(1, 2),
         resample=True,
@@ -23,7 +26,10 @@ class CellPoseInteractiveModel:
         interp=True,
         default_diameter=30,
         style_on=0,
+        disable_mkldnn=True,
     ):
+        assert type == "cellpose"
+        assert model_dir is not None
         device, gpu = models.assign_device(True, use_gpu)
         self.learning_rate = learning_rate
         self.channels = channels
@@ -34,6 +40,13 @@ class CellPoseInteractiveModel:
         self.flow_threshold = flow_threshold
         self.interp = interp
         self.default_diameter = default_diameter
+        if save_freq is None:
+            if gpu:
+                self.save_freq = 2000
+            else:
+                self.save_freq = 300
+        else:
+            self.save_freq = save_freq
         self.model = models.CellposeModel(
             gpu=gpu,
             device=device,
@@ -43,8 +56,18 @@ class CellPoseInteractiveModel:
             residual_on=residual_on,
             style_on=style_on,
             concatenation=0,
+            disable_mkldnn=disable_mkldnn,
         )
         os.makedirs(self.model_dir, exist_ok=True)
+        if resume:
+            resume_weights_path = os.path.join(self.model_dir, "snapshot")
+            if os.path.exists(resume_weights_path):
+                print("Resuming model from " + resume_weights_path)
+                self.load(resume_weights_path)
+                # disable pretrained model
+                pretrained_model = False
+            else:
+                print("Skipping resume, snapshot does not exist")
         # load pretrained model weights if not specified
         if pretrained_model is None:
             cp_model_dir = Path.home().joinpath(".cellpose", "models")
@@ -70,26 +93,29 @@ class CellPoseInteractiveModel:
                     torch.load(str(weights_path), map_location=torch.device("cpu")),
                     strict=False,
                 )
-        LR = np.linspace(0, self.learning_rate, 10)
-        max_n_epochs = 200
-        if max_n_epochs > 250:
-            LR = np.append(LR, self.learning_rate * np.ones(max_n_epochs - 100))
-            for i in range(10):
-                LR = np.append(LR, LR[-1] / 2 * np.ones(10))
-        else:
-            LR = np.append(LR, self.learning_rate * np.ones(max(0, max_n_epochs - 10)))
-        self.LR = LR
         self._iterations = 0
         momentum = 0.9
         weight_decay = 0.00001
-        self.model._set_optimizer(self.LR[0], momentum, weight_decay)
+        # Note: we are using Adam for adaptive learning rate which is different from the SDG used by cellpose
+        # this support to make the training more robust to different settings
+        self.model.optimizer = torch.optim.Adam(
+            self.model.net.parameters(), lr=self.learning_rate, weight_decay=1e-5
+        )
         self.model._set_criterion()
 
-    def _get_LR(self):
-        epoch = int(self._iterations / 1000)  # assuming we have 1000 samples
-        if epoch > len(self.LR):
-            return self.LR[-1]
-        return self.LR[epoch]
+    def get_config(self):
+        """augment the images and labels
+        Parameters
+        --------------
+        None
+
+        Returns
+        ------------------
+        config: dict
+            a dictionary contains the following keys:
+            1) `batch_size` the batch size for training
+        """
+        return {"batch_size": self.batch_size}
 
     def transform_labels(self, label_image):
         """transform the labels which will be used as training target
@@ -168,9 +194,10 @@ class CellPoseInteractiveModel:
         rescale=True,
     ):
         imgi, lbl = self.augment(images, labels)
-        self.model._set_learning_rate(self._get_LR())
         train_loss = self.model._train_step(imgi, lbl)
         self._iterations += len(images)
+        if self._iterations % self.save_freq == 0:
+            self.save(os.path.join(self.model_dir, "snapshot"))
         return train_loss
 
     def train_on_batch(self, X, y):
