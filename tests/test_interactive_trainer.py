@@ -5,19 +5,19 @@ import shutil
 import asyncio
 import threading
 import numpy as np
-from imageio import imwrite
+from imageio import imread, imwrite
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from interactive_trainer import InteractiveTrainer
 from models.interactive_cellpose import CellPoseInteractiveModel
-from data_utils import plot_history, fig2img
+from data_utils import plot_history, fig2img, plot_mask_overlay
 import cellpose
 
 model_config = dict(
     type="cellpose",
     model_dir="./data/hpa_dataset_v2/__models__",
-    use_gpu=False,
+    use_gpu=True,
     channels=[2, 3],
     style_on=0,
     default_diameter=100,
@@ -50,8 +50,8 @@ def test_workflow():
     data_dir = "./data/hpa_dataset_v2"
     val_name = "30609_1240_G3_4"
     val_sample = trainer.get_sample("valid", val_name)
-    # img = trainer.load_input_image("valid", val_name)
-    # imwrite(f"{data_dir}/{val_name}_image.png", img)
+    val_img = trainer.load_input_image("valid", val_name)
+    imwrite(f"{data_dir}/{val_name}_image.png", val_img)
     # val_mask = trainer.load_target_image("valid", val_name)
     # cellpose.io.imsave(f"{data_dir}/{val_name}_gt_mask.png", val_mask)
     history = []
@@ -61,10 +61,14 @@ def test_workflow():
         loss = trainer.train_once()
         history += [loss]
         data_size += [len(trainer.sample_pool)]
-        if i % 1000 == 0:
+        if i % 500 == 0:
             print("iteration", i, time.time() - t)
             geojson, mask = trainer.predict(val_sample[0])
             cellpose.io.imsave(f"{data_dir}/{val_name}_epoch_{i}.png", mask)
+            mask = imread(f"{data_dir}/{val_name}_epoch_{i}.png")
+            plot_mask_overlay(
+                val_img, mask, f"{data_dir}/{val_name}_epoch_{i}_imgoverlay.png"
+            )
             _, _, info = trainer.get_test_sample()
             # trainer.push_sample(info.name, geojson_annotation, target_folder="train")
             sample_dir = info["path"]

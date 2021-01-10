@@ -133,3 +133,11 @@ def plot_history(losses, data_size, iter_size, save_path):
     ax2.set_ylabel("Training size", color="blue", fontsize=14)
     # save the plot as a file
     plt.savefig(save_path, dpi=100, bbox_inches="tight")
+
+
+def plot_mask_overlay(img, mask, save_path):
+    fig, ax = plt.subplots()
+    ax.imshow(img)
+    ax.imshow(mask, alpha=0.5)
+    ax.axis("off")
+    plt.savefig(save_path, bbox_inches="tight", pad_inches=0)
