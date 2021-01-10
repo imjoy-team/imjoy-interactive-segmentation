@@ -30,7 +30,7 @@ trainer = InteractiveTrainer.get_instance(
 
 
 def test_train_once():
-    for i in range(10):
+    for i in range(3):
         trainer.train_once()
 
 
