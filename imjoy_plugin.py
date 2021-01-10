@@ -24,6 +24,7 @@ class ImJoyPlugin:
         self.mask_layer = None
         self.image_layer = None
         self._mask_prediction = None
+        self.tree = None
 
     def get_trainer(self):
         return self._trainer
@@ -55,8 +56,16 @@ class ImJoyPlugin:
             type="itk-vtk",
             name=self.current_sample_info["name"],
         )
+        self.geojson_layer = await self.viewer.add_shapes(
+            [],
+            shape_type="polygon",
+            edge_color="red",
+            name=self._trainer.object_name,
+        )
 
-    async def get_augmentations(self):
+    async def test_augmentations(self):
+        if self.image_layer:
+            self.viewer.remove_layer(self.image_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         if self.geojson_layer:
@@ -69,10 +78,10 @@ class ImJoyPlugin:
             if figure is None:
                 self.viewer.set_timeout(check_augmentations, 1500)
                 return
-            api.showMessage("augmentations done")
+            api.showMessage("Testing augmentation done")
             try:
                 self.image_layer = await self.viewer.view_image(
-                    figure, type="itk-vtk", name="Augmented grid"
+                    figure, type="itk-vtk", name="Augmented images"
                 )
             except Exception as e:
                 api.showMessage(str(e))
@@ -82,6 +91,9 @@ class ImJoyPlugin:
         self.viewer.set_timeout(check_augmentations, 1000)
 
     async def predict(self):
+        if not self.image_layer:
+            api.showMessage("No selected image for prediction")
+            return
         self.viewer.set_loader(True)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
@@ -116,17 +128,20 @@ class ImJoyPlugin:
                 )
                 self.viewer.set_loader(False)
                 if len(polygons) > 0:
-                    if len(polygons) < 2000:
-                        self.geojson_layer = await self.viewer.add_shapes(
-                            polygons,
-                            shape_type="polygon",
-                            edge_color="red",
-                            name=self._trainer.object_name,
+                    if len(polygons) > 2000:
+                        polygons = polygons[:2000]
+                        api.showMessage(
+                            f"WARNING: Too many object detected ({len(polygons)}), only displaying the first 2000 objects."
                         )
-                    else:
-                        api.showMessage(f"Too many object detected ({len(polygons)}).")
                 else:
+                    polygons = []
                     api.showMessage("No object detected.")
+                self.geojson_layer = await self.viewer.add_shapes(
+                    polygons,
+                    shape_type="polygon",
+                    edge_color="red",
+                    name=self._trainer.object_name,
+                )
             except Exception as e:
                 api.error(traceback.format_exc())
                 api.showMessage(str(e))
@@ -254,6 +269,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
+        await self.update_file_tree()
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
@@ -267,6 +283,7 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
+        await self.update_file_tree()
 
     def get_sample_list(self, group):
         data_dir = os.path.join(self._trainer.data_dir, group)
@@ -277,54 +294,35 @@ class ImJoyPlugin:
                 samples.append({"title": sf, "isLeaf": True, "data": {"group": group}})
         return samples
 
+    async def update_file_tree(self):
+        await self.tree.clear_nodes()
+        nodes = [
+            {
+                "title": "test",
+                "isLeaf": False,
+                "children": self.get_sample_list("test"),
+                "isExpanded": False,
+            },
+            {
+                "title": "train",
+                "isLeaf": False,
+                "children": self.get_sample_list("train"),
+                "isExpanded": False,
+            },
+        ]
+        await self.tree.set_nodes(nodes)
+
     async def run(self, ctx):
         self.viewer = await api.createWindow(
             src="https://kaibu.org/#/app", fullscreen=True
         )
         self.viewer.set_loader(True)
-
-        async def node_dbclick_callback(node):
-            await self.get_next_sample(node["title"], node["data"]["group"])
-
-        tree = await self.viewer.add_widget(
-            {
-                "_rintf": True,
-                "type": "tree",
-                "name": "Samples",
-                "node_dbclick_callback": node_dbclick_callback,
-                "nodes": [
-                    {
-                        "title": "test",
-                        "isLeaf": False,
-                        "children": self.get_sample_list("test"),
-                        "isExpanded": False,
-                    },
-                    {
-                        "title": "train",
-                        "isLeaf": False,
-                        "children": self.get_sample_list("train"),
-                        "isExpanded": False,
-                    },
-                ],
-            }
-        )
-
         await self.viewer.add_widget(
             {
                 "_rintf": True,
                 "name": "Control",
                 "type": "control",
                 "elements": [
-                    {
-                        "type": "button",
-                        "label": "Start Training",
-                        "callback": self.start_training,
-                    },
-                    {
-                        "type": "button",
-                        "label": "Stop Training",
-                        "callback": self.stop_training,
-                    },
                     {
                         "type": "button",
                         "label": "Get an Image",
@@ -337,27 +335,51 @@ class ImJoyPlugin:
                     },
                     {
                         "type": "button",
-                        "label": "Fetch the Mask",
-                        "callback": self.fetch_mask,
+                        "label": "Start Training",
+                        "callback": self.start_training,
                     },
+                    {
+                        "type": "button",
+                        "label": "Stop Training",
+                        "callback": self.stop_training,
+                    },
+                    # {
+                    #     "type": "button",
+                    #     "label": "Fetch the Mask",
+                    #     "callback": self.fetch_mask,
+                    # },
                     {
                         "type": "button",
                         "label": "Send for Training",
                         "callback": self.send_for_training,
                     },
+                    # {
+                    #     "type": "button",
+                    #     "label": "Send for Evaluation",
+                    #     "callback": self.send_for_evaluation,
+                    # },
                     {
                         "type": "button",
-                        "label": "Send for Evaluation",
-                        "callback": self.send_for_evaluation,
-                    },
-                    {
-                        "type": "button",
-                        "label": "Get Augmented Patches",
-                        "callback": self.get_augmentations,
+                        "label": "Test Augmentation",
+                        "callback": self.test_augmentations,
                     },
                 ],
             }
         )
+
+        async def node_dbclick_callback(node):
+            await self.get_next_sample(node["title"], node["data"]["group"])
+
+        self.tree = await self.viewer.add_widget(
+            {
+                "_rintf": True,
+                "type": "tree",
+                "name": "Samples",
+                "node_dbclick_callback": node_dbclick_callback,
+                "nodes": [],
+            }
+        )
+        await self.update_file_tree()
 
         losses = self._trainer.reports or []
         if len(losses) > 10000:
