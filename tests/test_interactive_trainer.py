@@ -5,13 +5,13 @@ import shutil
 import asyncio
 import threading
 import numpy as np
-from imageio import imwrite
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from interactive_trainer import InteractiveTrainer
 from models.interactive_cellpose import CellPoseInteractiveModel
 from data_utils import plot_history
+import cellpose
 
 model = CellPoseInteractiveModel(
     "./data/hpa_dataset_v2/__models__",
@@ -53,13 +53,11 @@ def test_workflow():
     iter_size = 5000
     for i in range(iter_size):
         loss = trainer.train_once()
-        print(loss, len(trainer.sample_pool))
         history += [loss]
         data_size += [len(trainer.sample_pool)]
         if i % 1000 == 0:
             geojson, mask = trainer.predict(val_sample[0])
-            mask = np.clip(mask > 0 * 255, 0, 255).astype("uint8")
-            imwrite(f"./data/hpa_dataset_v2/{val_name}_epoch_{i}.png", mask)
+            cellpose.io.imsave(f"{data_dir}/{val_name}_epoch_{i}.png", mask)
             _, _, info = trainer.get_test_sample()
             # trainer.push_sample(info.name, geojson_annotation, target_folder="train")
             sample_dir = info["path"]
