@@ -7,7 +7,6 @@ import json
 import time
 import traceback
 import warnings
-import albumentations as A
 
 import numpy as np
 from tqdm import tqdm
