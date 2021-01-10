@@ -92,8 +92,8 @@ def test_aug_plot():
 
 
 if __name__ == "__main__":
-    # test_train_once()
-    # test_predict()
-    # test_aug_plot()
+    test_train_once()
+    test_predict()
+    test_aug_plot()
     test_workflow()
     os._exit(0)
