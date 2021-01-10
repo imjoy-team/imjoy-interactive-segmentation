@@ -73,7 +73,11 @@ def test_train():
         rescale=1.0,
     )
     images, labels, image_names, test_images, test_labels, image_names_test = output
-    model.train((images, labels), (test_images, test_labels), iterations=len(images))
+    model.train(
+        (np.stack(images, axis=0), np.stack(labels, axis=0)),
+        (np.stack(test_images, axis=0), np.stack(test_labels, axis=0)),
+        iterations=1,
+    )
 
 
 def test_train_steps():
@@ -91,7 +95,7 @@ def test_train_steps():
 
     for i in range(10):
         y_predict = model.predict(X)
-        assert y_predict.shape == (512, 512)
+        assert y_predict.shape == (1, 512, 512, 1)
         file_path = os.path.join(
             "./data/cellpose_predicted_mask_epoch_{}.png".format(i * 100)
         )

@@ -5,6 +5,7 @@ import shutil
 import asyncio
 import threading
 import numpy as np
+from imageio import imwrite
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -34,7 +35,7 @@ trainer = InteractiveTrainer.get_instance(
 
 
 def test_train_once():
-    for i in range(10):
+    for i in range(3):
         trainer.train_once()
 
 
@@ -78,8 +79,14 @@ def test_workflow():
     )
 
 
+def test_aug_plot():
+    tmp = trainer.plot_augmentations()
+    imwrite("./data/hpa_dataset_v2/test_aug.png", tmp)
+
+
 if __name__ == "__main__":
-    # test_train_once()
-    # test_predict()
+    test_train_once()
+    test_predict()
+    test_aug_plot()
     test_workflow()
     os._exit(0)

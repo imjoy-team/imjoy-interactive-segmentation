@@ -199,8 +199,12 @@ class InteractiveTrainer:
         self.training_config = {"save_freq": 200}
         self._initialized = True
         try:
-            asyncio.get_running_loop()
-            asyncio.create_task(self.start_training_loop())
+            if sys.version_info < (3, 7):
+                self.loop = asyncio.get_event_loop()
+                asyncio.ensure_future(self.start_training_loop())
+            else:
+                asyncio.get_running_loop()
+                asyncio.create_task(self.start_training_loop())
         except RuntimeError:
             asyncio.run(self.start_training_loop())
 
@@ -316,8 +320,12 @@ class InteractiveTrainer:
         logger.info("starting training")
         if not self._training_loop_running:
             try:
-                asyncio.get_running_loop()
-                asyncio.create_task(self.start_training_loop())
+                if sys.version_info < (3, 7):
+                    self.loop = asyncio.get_event_loop()
+                    asyncio.ensure_future(self.start_training_loop())
+                else:
+                    asyncio.get_running_loop()
+                    asyncio.create_task(self.start_training_loop())
             except RuntimeError:
                 asyncio.run(self.start_training_loop())
         self.queue.sync_q.put({"type": "start"})
@@ -431,8 +439,18 @@ class InteractiveTrainer:
         batchX = []
         batchY = []
         x, y, _ = self.get_random_training_sample()
+        x = np.expand_dims(x, axis=0)
+        y = np.expand_dims(y, axis=0)
         for i in range(4):
             x_, y_ = self.model.augment(x, y)
+            x_ = np.swapaxes(np.squeeze(x_), 0, -1)
+            if x_.shape[-1] == 2:
+                x_3ch = np.dstack(
+                    (np.zeros_like(x_[:, :, 0]), x_[:, :, 0], x_[:, :, 1])
+                )
+                x_ = x_3ch
+            y_ = np.swapaxes(np.squeeze(y_), 0, -1)
             batchX += [x_]
             batchY += [y_]
-        return plot_images(batchX, batchY, x, y)
+
+        return plot_images(batchX, batchY, np.squeeze(x), np.squeeze(y))
