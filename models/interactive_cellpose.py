@@ -187,11 +187,7 @@ class CellPoseInteractiveModel:
         return imgi, lbl
 
     def train(
-        self,
-        images,
-        labels,
-        iterations=1,
-        rescale=True,
+        self, images, labels, iterations=1, rescale=True,
     ):
         imgi, lbl = self.augment(images, labels)
         train_loss = self.model._train_step(imgi, lbl)

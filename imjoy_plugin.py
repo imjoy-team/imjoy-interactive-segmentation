@@ -16,8 +16,9 @@ from imgseg.geojson_utils import geojson_to_masks
 
 
 class ImJoyPlugin:
-    def __init__(self, trainer):
+    def __init__(self, trainer, restore_test_annotation):
         self._trainer = trainer
+        self.restore_test_annotation = restore_test_annotation
 
     async def setup(self):
         self.geojson_layer = None
@@ -44,9 +45,11 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.geojson_layer)
         self._mask_prediction = None
         if folder == "test":
-            image, _, info = self._trainer.get_test_sample(sample_name)
+            image, geojson_annotation, info = self._trainer.get_test_sample(sample_name)
         elif folder == "train":
-            image, _, info = self._trainer.get_training_sample(sample_name)
+            image, geojson_annotation, info = self._trainer.get_training_sample(
+                sample_name
+            )
         else:
             raise Exception("unsupported folder: " + folder)
         self.current_sample_info = info
@@ -57,11 +60,13 @@ class ImJoyPlugin:
             name=self.current_sample_info["name"],
         )
         self.geojson_layer = await self.viewer.add_shapes(
-            [],
-            shape_type="polygon",
-            edge_color="red",
-            name=self._trainer.object_name,
+            [], shape_type="polygon", edge_color="red", name=self._trainer.object_name,
         )
+        # don't restore annotation for test if restore_test_annotation=False
+        if folder == "test" and not self.restore_test_annotation:
+            return
+        geojson_annotation = self.flipud_annotation(geojson_annotation)
+        await self.geojson_layer.set_features(geojson_annotation)
 
     async def test_augmentations(self):
         if self.image_layer:
@@ -157,34 +162,14 @@ class ImJoyPlugin:
             self.viewer.remove_layer(self.geojson_layer)
         annotation_file = os.path.join(
             self._trainer.data_dir,
-            "test",
+            self.current_sample_info["folder"],
             self.current_sample_info["name"],
             "annotation.json",
         )
-        with io.open(
-            annotation_file,
-            "r",
-            encoding="utf-8-sig",
-        ) as myfile:
+        with io.open(annotation_file, "r", encoding="utf-8-sig",) as myfile:
             polygons = json.load(myfile)
-        size = polygons["bbox"][3]
-        for i, feature in enumerate(polygons["features"]):
-            coordinates = feature["geometry"]["coordinates"][0]
-            new_coordinates = []
-            for j, coordinate in enumerate(coordinates):
-                x, y = coordinate
-                if x < 0:
-                    x = 0
-                if x > size:
-                    x = size
-                if y < 0:
-                    y = 0
-                if y > size:
-                    y = size
-                y = size - y
-                new_coordinates.append([x, y])
-            polygons["features"][i]["geometry"]["coordinates"][0] = new_coordinates
 
+        polygons = self.flipud_annotation(polygons)
         polygons = list(
             map(
                 lambda feature: np.array(
@@ -225,38 +210,7 @@ class ImJoyPlugin:
             api.showMessage("no annotation available")
             return
 
-        self.current_annotation = await self.geojson_layer.get_features()
-        if len(self.current_annotation["features"]) < 1:
-            api.showMessage("no annotation available")
-            return
-
-        img = imread(
-            os.path.join(
-                self._trainer.data_dir,
-                "test",
-                self.current_sample_info["name"],
-                self._trainer.input_channels[0],
-            )
-        )
-        size = img.shape[1]
-        for i, feature in enumerate(self.current_annotation["features"]):
-            coordinates = feature["geometry"]["coordinates"][0]
-            new_coordinates = []
-            for j, coordinate in enumerate(coordinates):
-                x, y = coordinate
-                if x < 0:
-                    x = 0
-                if x > size:
-                    x = size
-                if y < 0:
-                    y = 0
-                if y > size:
-                    y = size
-                y = size - y
-                new_coordinates.append([x, y])
-            self.current_annotation["features"][i]["geometry"]["coordinates"][
-                0
-            ] = new_coordinates
+        await self.save_annotation()
         self._trainer.push_sample_async(
             self.current_sample_info["name"],
             self.current_annotation,
@@ -312,6 +266,56 @@ class ImJoyPlugin:
         ]
         await self.tree.set_nodes(nodes)
 
+    async def reload_samples(self):
+        try:
+            self._trainer.reload_sample_pool()
+            await self.update_file_tree()
+            await api.showMessage("Sample pool reloaded.")
+        except Exception as e:
+            await api.showMessage("Failed to reload samples, error: " + str(e))
+
+    def flipud_annotation(self, annotation, size=None):
+        size = size or annotation["bbox"][3]
+        for i, feature in enumerate(annotation["features"]):
+            coordinates = feature["geometry"]["coordinates"][0]
+            new_coordinates = []
+            for j, coordinate in enumerate(coordinates):
+                x, y = coordinate
+                if x < 0:
+                    x = 0
+                if x > size:
+                    x = size
+                if y < 0:
+                    y = 0
+                if y > size:
+                    y = size
+                y = size - y
+                new_coordinates.append([x, y])
+            annotation["features"][i]["geometry"]["coordinates"][0] = new_coordinates
+        return annotation
+
+    async def save_annotation(self):
+        self.current_annotation = await self.geojson_layer.get_features()
+        if len(self.current_annotation["features"]) < 1:
+            api.showMessage("no annotation available")
+            return
+
+        img = imread(
+            os.path.join(
+                self._trainer.data_dir,
+                self.current_sample_info["folder"],
+                self.current_sample_info["name"],
+                self._trainer.input_channels[0],
+            )
+        )
+        size = img.shape[1]
+        self.current_annotation = self.flipud_annotation(self.current_annotation, size)
+        self._trainer.save_annotation_async(
+            self.current_sample_info["folder"],
+            self.current_sample_info["name"],
+            self.current_annotation,
+        )
+
     async def run(self, ctx):
         self.viewer = await api.createWindow(
             src="https://kaibu.org/#/app", fullscreen=True
@@ -328,11 +332,7 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {
-                        "type": "button",
-                        "label": "Predict",
-                        "callback": self.predict,
-                    },
+                    {"type": "button", "label": "Predict", "callback": self.predict,},
                     {
                         "type": "button",
                         "label": "Start Training",
@@ -342,6 +342,16 @@ class ImJoyPlugin:
                         "type": "button",
                         "label": "Stop Training",
                         "callback": self.stop_training,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Save Annotation",
+                        "callback": self.save_annotation,
+                    },
+                    {
+                        "type": "button",
+                        "label": "Reload Samples",
+                        "callback": self.reload_samples,
                     },
                     # {
                     #     "type": "button",
@@ -458,8 +468,8 @@ class ImJoyPlugin:
         self.viewer.set_loader(False)
 
 
-def start_interactive_segmentation(*args, **kwargs):
+def start_interactive_segmentation(*args, restore_test_annotation=False, **kwargs):
     trainer = InteractiveTrainer.get_instance(*args, **kwargs)
-    plugin = ImJoyPlugin(trainer)
+    plugin = ImJoyPlugin(trainer, restore_test_annotation)
     api.export(plugin)
     return plugin

@@ -90,8 +90,7 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
     ]
     sample_pool = []
     logger.info(
-        "loading samples, input channels: %s",
-        input_channels,
+        "loading samples, input channels: %s", input_channels,
     )
     for sample_name in tqdm(sample_list):
         sample_path = os.path.join(data_dir, folder, sample_name)
@@ -108,7 +107,7 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
         mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
         labels = mask_dict["labels"]
         mask = transform_labels(np.expand_dims(labels, axis=2))
-        info = {"name": sample_name, "path": sample_path}
+        info = {"name": sample_name, "path": sample_path, "folder": folder}
         sample_pool.append((img, mask, info))
     logger.info(
         "loaded %d samples from %s", len(sample_list), os.path.join(data_dir, folder)
@@ -175,24 +174,19 @@ class InteractiveTrainer:
         model = load_model(model_config)
         assert model is not None
         self.model = model
+        self.folder = folder
         self.reports = []
 
         self.object_name = object_name
         self.input_channels = input_channels
         self.scale_factor = scale_factor
 
-        self.sample_pool = load_sample_pool(
-            data_dir,
-            folder,
-            input_channels,
-            self.scale_factor,
-            self.model.transform_labels,
-        )
-        # _img, _mask, _info = self.sample_pool[0]
-
         self.latest_samples = []
         self.max_pool_length = max_pool_length
         self.min_object_size = min_object_size
+
+        self.reload_sample_pool()
+        # _img, _mask, _info = self.sample_pool[0]
 
         self._initialized = True
         try:
@@ -204,6 +198,15 @@ class InteractiveTrainer:
                 asyncio.create_task(self.start_training_loop())
         except RuntimeError:
             asyncio.run(self.start_training_loop())
+
+    def reload_sample_pool(self):
+        self.sample_pool = load_sample_pool(
+            self.data_dir,
+            self.folder,
+            self.input_channels,
+            self.scale_factor,
+            self.model.transform_labels,
+        )
 
     def get_error(self, clear=True):
         error = self._training_error
@@ -219,10 +222,7 @@ class InteractiveTrainer:
         else:
             self.loop = asyncio.get_running_loop()
         self.loop.run_in_executor(
-            None,
-            self._training_loop,
-            self.queue.sync_q,
-            self.reports,
+            None, self._training_loop, self.queue.sync_q, self.reports,
         )
 
     def train_once(self):
@@ -284,6 +284,8 @@ class InteractiveTrainer:
                         self._prediction_result = self.predict(task["data"])
                     elif task["type"] == "push_sample":
                         self.push_sample(*task["args"], **task["kwargs"])
+                    elif task["type"] == "save_annotation":
+                        self.save_annotation(*task["args"], **task["kwargs"])
                     elif task["type"] == "plot_augmentations":
                         self._plot_augmentations_result = self.plot_augmentations()
                     else:
@@ -298,10 +300,7 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {
-                            "loss": loss_metrics[0],
-                            "iteration": iteration,
-                        }
+                        {"loss": loss_metrics[0], "iteration": iteration,}
                     )
                 else:
                     time.sleep(0.1)
@@ -357,19 +356,23 @@ class InteractiveTrainer:
             ]
             sample_name = random.choice(samples)
         img = self.load_input_image(folder, sample_name)
-        info = {
-            "name": sample_name,
-            "path": os.path.join(self.data_dir, folder, sample_name),
-        }
-        return img, None, info
+        sample_dir = os.path.join(self.data_dir, folder, sample_name)
+        info = {"name": sample_name, "path": sample_dir, "folder": folder}
 
-    def push_sample_async(self, *args, **kwargs):
-        self.queue.sync_q.put({"type": "push_sample", "args": args, "kwargs": kwargs})
+        annotation_path = os.path.join(sample_dir, "annotation.json")
+        geojson_annotation = None
+        if os.path.exists(annotation_path):
+            with open(annotation_path, encoding="utf-8-sig") as fh:
+                geojson_annotation = json.load(fh)
+        return img, geojson_annotation, info
 
-    def push_sample(
-        self, sample_name, geojson_annotation, target_folder="train", prediction=None
-    ):
-        sample_dir = os.path.join(self.data_dir, "test", sample_name)
+    def save_annotation_async(self, *args, **kwargs):
+        self.queue.sync_q.put(
+            {"type": "save_annotation", "args": args, "kwargs": kwargs}
+        )
+
+    def save_annotation(self, folder, sample_name, geojson_annotation):
+        sample_dir = os.path.join(self.data_dir, folder, sample_name)
         img = imageio.imread(os.path.join(sample_dir, self.input_channels[0]))
         geojson_annotation["bbox"] = [0, 0, img.shape[0] - 1, img.shape[1] - 1]
         for item in geojson_annotation["features"]:
@@ -378,6 +381,14 @@ class InteractiveTrainer:
             os.path.join(sample_dir, "annotation.json"), "w", encoding="utf-8"
         ) as f:
             json.dump(geojson_annotation, f)
+
+    def push_sample_async(self, *args, **kwargs):
+        self.queue.sync_q.put({"type": "push_sample", "args": args, "kwargs": kwargs})
+
+    def push_sample(
+        self, sample_name, geojson_annotation, target_folder="train", prediction=None
+    ):
+        self.save_annotation("test", sample_name, geojson_annotation)
 
         new_sample_dir = os.path.join(self.data_dir, target_folder, sample_name)
         shutil.move(sample_dir, new_sample_dir)

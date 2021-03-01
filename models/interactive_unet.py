@@ -111,13 +111,7 @@ def get_augmentor(target_size=128):
             A.VerticalFlip(p=0.5),
             A.Rotate(limit=180, p=1),
             A.CenterCrop(target_size, target_size),
-            A.OneOf(
-                [
-                    A.RandomBrightnessContrast(p=0.5),
-                    A.RandomGamma(p=0.5),
-                ],
-                p=0.1,
-            ),
+            A.OneOf([A.RandomBrightnessContrast(p=0.5), A.RandomGamma(p=0.5),], p=0.1,),
         ]
     )
 
