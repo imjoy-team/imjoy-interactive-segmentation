@@ -65,7 +65,8 @@ class ImJoyPlugin:
         # don't restore annotation for test if restore_test_annotation=False
         if folder == "test" and not self.restore_test_annotation:
             return
-        geojson_annotation = self.flipud_annotation(geojson_annotation)
+        size = image.shape[1]
+        geojson_annotation = self.flipud_annotation(geojson_annotation, size)
         await self.geojson_layer.set_features(geojson_annotation)
 
     async def test_augmentations(self):
@@ -315,6 +316,9 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             self.current_annotation,
         )
+        if self.current_sample_info["folder"] == 'train':
+            self.reload_samples()
+            await api.showMessage("Training sample pool reloaded.")
 
     async def run(self, ctx):
         self.viewer = await api.createWindow(
@@ -348,11 +352,11 @@ class ImJoyPlugin:
                         "label": "Save Annotation",
                         "callback": self.save_annotation,
                     },
-                    {
-                        "type": "button",
-                        "label": "Reload Samples",
-                        "callback": self.reload_samples,
-                    },
+                    # {
+                    #     "type": "button",
+                    #     "label": "Reload Samples",
+                    #     "callback": self.reload_samples,
+                    # },
                     # {
                     #     "type": "button",
                     #     "label": "Fetch the Mask",
