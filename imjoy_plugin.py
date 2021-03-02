@@ -37,38 +37,44 @@ class ImJoyPlugin:
         self._trainer.stop()
 
     async def get_next_sample(self, sample_name=None, folder="test"):
-        if self.image_layer:
-            self.viewer.remove_layer(self.image_layer)
-        if self.mask_layer:
-            self.viewer.remove_layer(self.mask_layer)
-        if self.geojson_layer:
-            self.viewer.remove_layer(self.geojson_layer)
-        self._mask_prediction = None
-        if folder == "test":
-            image, geojson_annotation, info = self._trainer.get_test_sample(sample_name)
-        elif folder == "train":
-            image, geojson_annotation, info = self._trainer.get_training_sample(
-                sample_name
+        try:
+            if self.image_layer:
+                self.viewer.remove_layer(self.image_layer)
+            if self.mask_layer:
+                self.viewer.remove_layer(self.mask_layer)
+            if self.geojson_layer:
+                self.viewer.remove_layer(self.geojson_layer)
+            self._mask_prediction = None
+            if folder == "test":
+                image, geojson_annotation, info = self._trainer.get_test_sample(sample_name)
+            elif folder == "train":
+                image, geojson_annotation, info = self._trainer.get_training_sample(
+                    sample_name
+                )
+            else:
+                raise Exception("unsupported folder: " + folder)
+            self.current_sample_info = info
+            self.current_image = image
+            self.image_layer = await self.viewer.view_image(
+                (byte_scale(image)).astype("uint8"),
+                type="itk-vtk",
+                name=self.current_sample_info["name"],
             )
-        else:
-            raise Exception("unsupported folder: " + folder)
-        self.current_sample_info = info
-        self.current_image = image
-        self.image_layer = await self.viewer.view_image(
-            (byte_scale(image)).astype("uint8"),
-            type="itk-vtk",
-            name=self.current_sample_info["name"],
-        )
-        self.geojson_layer = await self.viewer.add_shapes(
-            [], shape_type="polygon", edge_color="red", name=self._trainer.object_name,
-        )
-        # don't restore annotation for test if restore_test_annotation=False
-        if folder == "test" and not self.restore_test_annotation:
-            return
-        if geojson_annotation is not None:
-            size = image.shape[1]
-            geojson_annotation = self.flipud_annotation(geojson_annotation, size)
-            await self.geojson_layer.set_features(geojson_annotation)
+            self.geojson_layer = await self.viewer.add_shapes(
+                [], shape_type="polygon", edge_color="red", name=self._trainer.object_name,
+            )
+            # don't restore annotation for test if restore_test_annotation=False
+            if folder == "test" and not self.restore_test_annotation:
+                return
+            if geojson_annotation is not None:
+                size = image.shape[1]
+                geojson_annotation = self.flipud_annotation(geojson_annotation, size)
+                await self.geojson_layer.set_features(geojson_annotation)
+        except Exception as e:
+            await api.error(traceback.format_exc())
+            await api.alert("Failed to load sample, error:" + str(e))
+        finally:
+            self.viewer.set_loader(False)
 
     async def test_augmentations(self):
         if self.image_layer:
