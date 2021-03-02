@@ -65,9 +65,10 @@ class ImJoyPlugin:
         # don't restore annotation for test if restore_test_annotation=False
         if folder == "test" and not self.restore_test_annotation:
             return
-        size = image.shape[1]
-        geojson_annotation = self.flipud_annotation(geojson_annotation, size)
-        await self.geojson_layer.set_features(geojson_annotation)
+        if geojson_annotation is not None:
+            size = image.shape[1]
+            geojson_annotation = self.flipud_annotation(geojson_annotation, size)
+            await self.geojson_layer.set_features(geojson_annotation)
 
     async def test_augmentations(self):
         if self.image_layer:
