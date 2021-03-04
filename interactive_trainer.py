@@ -391,6 +391,7 @@ class InteractiveTrainer:
         self.save_annotation("test", sample_name, geojson_annotation)
 
         new_sample_dir = os.path.join(self.data_dir, target_folder, sample_name)
+        sample_dir = os.path.join(self.data_dir, "test", sample_name)
         shutil.move(sample_dir, new_sample_dir)
 
         if target_folder == "train":
