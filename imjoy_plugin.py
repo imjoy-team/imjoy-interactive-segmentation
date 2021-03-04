@@ -211,9 +211,6 @@ class ImJoyPlugin:
             api.showMessage("No object detected.")
 
     async def send_for_training(self):
-        if self._mask_prediction is None:
-            api.showMessage("please predict first")
-            return
         if not self.geojson_layer:
             api.showMessage("no annotation available")
             return
