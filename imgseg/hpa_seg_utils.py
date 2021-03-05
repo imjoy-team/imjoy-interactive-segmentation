@@ -200,8 +200,7 @@ def label_cell2(cell_pred):
         ),
     )
     cell_region1 = np.multiply(
-        img[..., 2] > threshold_value1,
-        np.invert(np.asarray(cell_pred[..., 1] > 0.01)),
+        img[..., 2] > threshold_value1, np.invert(np.asarray(cell_pred[..., 1] > 0.01)),
     )
     cell_region_eroded = morphology.erosion(cell_region1, morphology.square(25))
     cell_region_eroded = np.asarray(cell_region_eroded, dtype=np.uint8)
@@ -224,10 +223,7 @@ def label_cell2(cell_pred):
     cell_label = closing(cell_label, selem)
     # this part is to use green channel, and extend cell label to green channel
     # benefit is to exclude cells clear on border but without nucleus
-    sk = np.logical_or(
-        cell_label > 0,
-        cell_pred[..., 1] > 0.1,
-    )
+    sk = np.logical_or(cell_label > 0, cell_pred[..., 1] > 0.1,)
     sk = np.asarray(sk, dtype=np.uint8)
     cell_label = segmentation.watershed(-sk, cell_label, mask=sk)
     cell_label = __fill_holes(cell_label)

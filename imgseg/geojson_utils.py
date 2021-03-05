@@ -49,9 +49,7 @@ def masks_to_annotation(datasets_dir, save_path):
 
 
 def geojson_to_masks(
-    file_proc,
-    mask_types=["filled", "edge", "labels"],
-    img_size=None,
+    file_proc, mask_types=["filled", "edge", "labels"], img_size=None,
 ):
 
     # annot_types = list(masks_to_create.keys())
@@ -112,43 +110,3 @@ def geojson_to_masks(
             mask_dict = borderMasks.generate(annot_dict, mask_dict)
 
     return mask_dict
-
-
-if __name__ == "__main__":
-    # # generate annotation from mask
-    # datasets_dir = "/home/alex/Downloads/test/data"
-    # save_path = "/home/alex/Downloads/test/data/kaggle_data/train"
-    # masks_to_annotation(datasets_dir, save_path)
-    #
-    # # move the mask.png to the mask_labels.png
-    # # for id in os.listdir(save_path):
-    # #     shutil.move(os.path.join(save_path, id, "mask.png"),
-    # #                 os.path.join(save_path, id, "mask_labels.png"))
-
-    # generate mask from annotation.josn
-    datasets_dir = "/home/alex/Downloads/test/data/kaggle_data"
-    err_list = []
-    for file_id in os.listdir(os.path.join(datasets_dir, "train")):
-        file_path = os.path.join(datasets_dir, "train", file_id, "annotation.json")
-        # gen_mask_from_geojson([file_path], masks_to_create_value=["border_mask"])
-        try:
-            gen_mask_from_geojson([file_path], masks_to_create_value=["border_mask"])
-        except:
-            print("generate mask error:", os.path.join(datasets_dir, "train", file_id))
-            err_list.append(file_id)
-    print("err_list:", err_list)
-
-    # # change the mask file name
-    # for file_id in os.listdir(os.path.join(datasets_dir, "train")):
-    #     file_path = os.path.join(datasets_dir, "train", file_id)
-    #     for id in os.listdir(file_path):
-    #         try:
-    #             shutil.move(os.path.join(file_path, "nuclei_weighted_boarder.png"),
-    #                         os.path.join(file_path, "nuclei_border_mask.png"))
-    #         except:
-    #             if os.path.exists(os.path.join(file_path, "nuclei_border_mask.png")):
-    #                 print("file exist:", os.path.join(file_path, "nuclei_border_mask.png"))
-    #             elif not os.path.exists(os.path.join(file_path, "nuclei_weighted_boarder.png")):
-    #                 print("file not exist:", os.path.join(file_path, "nuclei_weighted_boarder.png"))
-    #             else:
-    #                 print("move error:", os.path.join(file_path, "nuclei_weighted_boarder.png"))
