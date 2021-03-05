@@ -16,9 +16,10 @@ from imgseg.geojson_utils import geojson_to_masks
 
 
 class ImJoyPlugin:
-    def __init__(self, trainer, restore_test_annotation):
+    def __init__(self, trainer, restore_test_annotation=False, auto_get_sample=True):
         self._trainer = trainer
         self.restore_test_annotation = restore_test_annotation
+        self.auto_get_sample = auto_get_sample
 
     async def setup(self):
         self.geojson_layer = None
@@ -223,12 +224,17 @@ class ImJoyPlugin:
             prediction=self._mask_prediction,
         )
         self._mask_prediction = None
-        # api.showMessage("Sample moved to the training set")
+        
+        if self.image_layer:
+            self.viewer.remove_layer(self.image_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         await self.update_file_tree()
+        await api.showMessage("Sample moved to the training set")
+        if self.auto_get_sample:
+            await self.get_next_sample()
 
     async def send_for_evaluation(self):
         self.current_annotation = await self.geojson_layer.get_features()
@@ -238,11 +244,15 @@ class ImJoyPlugin:
             target_folder="valid",
             prediction=self._mask_prediction,
         )
+        if self.image_layer:
+            self.viewer.remove_layer(self.image_layer)
         if self.geojson_layer:
             self.viewer.remove_layer(self.geojson_layer)
         if self.mask_layer:
             self.viewer.remove_layer(self.mask_layer)
         await self.update_file_tree()
+        if self.auto_get_sample:
+            await self.get_next_sample()
 
     def get_sample_list(self, group):
         data_dir = os.path.join(self._trainer.data_dir, group)
@@ -476,8 +486,8 @@ class ImJoyPlugin:
         self.viewer.set_loader(False)
 
 
-def start_interactive_segmentation(*args, restore_test_annotation=False, **kwargs):
+def start_interactive_segmentation(*args, restore_test_annotation=False, auto_get_sample=True, **kwargs):
     trainer = InteractiveTrainer.get_instance(*args, **kwargs)
-    plugin = ImJoyPlugin(trainer, restore_test_annotation)
+    plugin = ImJoyPlugin(trainer, restore_test_annotation, auto_get_sample)
     api.export(plugin)
     return plugin
