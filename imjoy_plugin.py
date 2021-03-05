@@ -386,11 +386,11 @@ class ImJoyPlugin:
                     #     "label": "Send for Evaluation",
                     #     "callback": self.send_for_evaluation,
                     # },
-                    {
-                        "type": "button",
-                        "label": "Test Augmentation",
-                        "callback": self.test_augmentations,
-                    },
+                    # {
+                    #     "type": "button",
+                    #     "label": "Test Augmentation",
+                    #     "callback": self.test_augmentations,
+                    # },
                 ],
             }
         )
