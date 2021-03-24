@@ -39,7 +39,7 @@ Importantly, create a notebook file with kernel spec named "ImJoy Interactive ML
 You can download our example dataset to get started:
 ```bash
 # this will save the example dataset to `./data/hpa_dataset_v2`
-python download_example_dataset.py
+python -c "from imjoy_interactive_trainer.data_utils import download_example_dataset;download_example_dataset()"
 ```
 
 Create a jupyter notebook and run the followin code in a cell:

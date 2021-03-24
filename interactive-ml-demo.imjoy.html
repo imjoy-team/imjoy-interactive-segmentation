@@ -20,13 +20,10 @@
 </config>
 
 <script lang="python">
-import sys
-sys.path.insert(0, './imjoy-interactive-segmentation')
-
 import os
-from download_example_dataset import download_with_url
 from imjoy import api
-from imjoy_plugin import start_interactive_segmentation
+from imjoy_interactive_trainer.data_utils import download_with_url
+from imjoy_interactive_trainer.imjoy_plugin import start_interactive_segmentation
 
 # download exmaple dataset
 os.makedirs("data", exist_ok=True)

@@ -6,7 +6,6 @@ from geojson import Polygon as geojson_polygon
 from shapely.geometry import Polygon as shapely_polygon
 from geojson import Feature, FeatureCollection, dump
 from skimage import measure, morphology
-import matplotlib.pyplot as plt
 import urllib.request
 import zipfile
 
@@ -115,6 +114,7 @@ def fig2img(fig):
 
 
 def plot_images(images, masks, original_image=None, original_mask=None):
+    import matplotlib.pyplot as plt
     fontsize = 18
     params = {
         "ytick.color": "gray",
@@ -153,6 +153,7 @@ def moving_average(interval, window_size):
 
 
 def plot_history(losses, data_size, iter_size, save_path):
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot(range(iter_size), losses, color="red", alpha=0.2)
     ax.plot(
@@ -168,6 +169,7 @@ def plot_history(losses, data_size, iter_size, save_path):
 
 
 def plot_mask_overlay(img, mask, save_path):
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.imshow(img)
     ax.imshow(mask, alpha=0.5)
