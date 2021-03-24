@@ -1,5 +1,4 @@
 """Set up file for imjoy-interactive-trainer."""
-import json
 from pathlib import Path
 
 from setuptools import setup, find_packages
@@ -10,7 +9,6 @@ PACKAGE_JSON = (PROJECT_DIR / "imjoy_interactive_trainer" / "VERSION").read_text
 with open(PROJECT_DIR/ 'requirements.txt') as fp:
     install_requires = [req for req in fp.read().split('\n') if not req.startswith('#')]
 
-print('====>', install_requires)
 setup(
     name="imjoy-interactive-trainer",
     version=PACKAGE_JSON,
