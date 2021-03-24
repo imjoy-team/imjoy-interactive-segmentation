@@ -14,6 +14,6 @@ janus==0.6.1
 folium==0.2.1
 torch==1.7.0
 torchvision==0.8.0
-git+https://github.com/oeway/cellpose@convert-keras#egg=cellpose
+cellpose@git+https://github.com/oeway/cellpose@convert-keras#egg=cellpose
 #albumentations
 pytest

@@ -1,18 +1,15 @@
 import os
 import io
-import time
 import numpy as np
 import json
-import asyncio
 import traceback
-from imageio import imread, imwrite
-from data_utils import plot_images
+from imageio import imread
 from imjoy import api
 
 
-from interactive_trainer import InteractiveTrainer, byte_scale
+from imjoy_interactive_trainer.interactive_trainer import InteractiveTrainer, byte_scale
 
-from imgseg.geojson_utils import geojson_to_masks
+from imjoy_interactive_trainer.imgseg.geojson_utils import geojson_to_masks
 
 
 class ImJoyPlugin:

@@ -2,15 +2,13 @@ import os
 import sys
 import time
 import shutil
-import asyncio
-import threading
 import numpy as np
 from imageio import imread, imwrite
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from interactive_trainer import InteractiveTrainer
-from data_utils import plot_history, fig2img, plot_mask_overlay
+from imjoy_interactive_trainer.interactive_trainer import InteractiveTrainer
+from imjoy_interactive_trainer.data_utils import plot_history, fig2img, plot_mask_overlay
 import cellpose
 
 model_config = dict(
