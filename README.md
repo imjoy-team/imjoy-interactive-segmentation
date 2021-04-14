@@ -6,8 +6,11 @@
 
 This project enables deep learning powered interactive segmentation with ImJoy.
 
-In contrast to traditional deep learning model training where all the annotations are collected before the training, interactive learning runs the model training while adding new annotations.
-	
+For more details, read our article on f1000 research: [Interactive biomedical segmentation tool powered by deep learning and ImJoy](https://f1000research.com/articles/10-142).
+
+
+[Watch the tutorial video](https://widgets.figshare.com/articles/13721410/embed?show_title=1)
+
 ## Key feature
 * Using ImJoy as an interface for data loading and annotation
 * Track training progress and guide the model throughout training
@@ -15,8 +18,10 @@ In contrast to traditional deep learning model training where all the annotation
 Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
 ## Getting started
+To get started, we recommend to watch the [tutorial video](https://widgets.figshare.com/articles/13721410/embed?show_title=1).
 
-The easiest way to try the tool is to run tutorial notebook in Google Colab: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imjoy-team/imjoy-interactive-segmentation/blob/master/Tutorial.ipynb). You won't need to install anything locally, however, you will need to open the notebook in **Chrome** or **FireFox** (we do not support Safari for now).
+
+Then, you can try the tool yourself by running the tutorial notebook in Google Colab: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imjoy-team/imjoy-interactive-segmentation/blob/master/Tutorial.ipynb). You won't need to install anything locally, however, you will need to open the notebook in **Chrome** or **FireFox** (we do not support Safari for now).
 
 ## Installation
 
@@ -72,10 +77,20 @@ start_interactive_segmentation(model_config,
                                scale_factor=1.0)
 ```
 
-
-
-### Switch on fullscreen in Google Colab
+In the annotation interface, follow these steps:
+ 1. Annotate a few images by clicking "Get image" and use the markup tool to draw the cell outline. **You can SKIP this step if you are using the example dataset**, because we have already added 4 annotated images to bootstrap the training.
+ 1. Click "Start Training" to start the trainer, you can switch to the "Training" tab to see the training loss chart. Wait for a few seconds, and you should see new loss values being added to the chart.
+ 1. Now we can annotating new images by first click "Get an Image", then click "Predict". With the predicted mask, we can use the markup tools to correct the annotation. For example, you can use polygon tool to add new objects, select and press delete button to remove objects, or use the cutter to split one object into two.
+ 1. After manual correction, click "Send for Training" and repeat the last step until you are satisfied with the model performance.
+### Switch on fullscreen mode in Google Colab
 
 In Google Colab, you can use the annotation tool in fullscreen mode, here is how you can switch on it:
 
 ![how to switch on fullscreen mode in colab](./switch-on-fullscreen.gif)
+
+
+### How to cite
+
+```
+Ouyang W, Le T, Xu H and Lundberg E. Interactive biomedical segmentation tool powered by deep learning and ImJoy [version 1; peer review: 1 approved]. F1000Research 2021, 10:142 (https://doi.org/10.12688/f1000research.50798.1)
+```
