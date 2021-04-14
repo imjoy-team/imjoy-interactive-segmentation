@@ -19,9 +19,7 @@ Therefore, users can encourage the model to learn by feeding in appropriate data
 conda create -n interactive-ml python=3.7.2 -y
 conda activate interactive-ml
 
-git clone https://github.com/CellProfiling/imjoy-interactive-segmentation.git
-cd imjoy-interactive-segmentation
-pip install -r requirements.txt
+pip install git+https://github.com/imjoy-team/imjoy-interactive-segmentation@python-package#egg=imjoy-interactive-trainer
 python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
 ```
 
@@ -39,7 +37,7 @@ Importantly, create a notebook file with kernel spec named "ImJoy Interactive ML
 You can download our example dataset to get started:
 ```bash
 # this will save the example dataset to `./data/hpa_dataset_v2`
-python download_example_dataset.py
+python -c "from imjoy_interactive_trainer.data_utils import download_example_dataset;download_example_dataset()"
 ```
 
 Create a jupyter notebook and run the followin code in a cell:

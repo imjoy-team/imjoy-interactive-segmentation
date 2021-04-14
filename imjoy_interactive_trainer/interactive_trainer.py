@@ -14,14 +14,14 @@ import imageio
 from skimage import measure, morphology
 from skimage.transform import rescale
 
-from imgseg.geojson_utils import geojson_to_masks
-from data_utils import mask_to_geojson
-from imgseg.hpa_seg_utils import label_nuclei, label_cell2
+from imjoy_interactive_trainer.imgseg.geojson_utils import geojson_to_masks
+from imjoy_interactive_trainer.data_utils import mask_to_geojson
+from imjoy_interactive_trainer.imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
 import json
 
-from data_utils import plot_images
+from imjoy_interactive_trainer.data_utils import plot_images
 
 
 os.makedirs("data", exist_ok=True)
@@ -117,7 +117,7 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
 
 def load_model(model_config):
     if model_config["type"] == "cellpose":
-        from models.interactive_cellpose import CellPoseInteractiveModel
+        from imjoy_interactive_trainer.models.interactive_cellpose import CellPoseInteractiveModel
 
         return CellPoseInteractiveModel(**model_config)
     else:
