@@ -14,16 +14,22 @@ In contrast to traditional deep learning model training where all the annotation
 
 Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
+## Getting started
+
+The easiest way to try the tool is to run tutorial notebook in Google Colab: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imjoy-team/imjoy-interactive-segmentation/blob/master/Tutorial.ipynb). You won't need to install anything locally, however, you will need to open the notebook in **Chrome** or **FireFox** (we do not support Safari for now).
+
 ## Installation
+
+If you use the tool in your own computer or server, you will need Anaconda or Miniconda installed. Then run the following command to install the library:
+
 ```bash
 conda create -n interactive-ml python=3.7.2 -y
 conda activate interactive-ml
 
-pip install git+https://github.com/imjoy-team/imjoy-interactive-segmentation@python-package#egg=imjoy-interactive-trainer
+pip install git+https://github.com/imjoy-team/imjoy-interactive-segmentation@master#egg=imjoy-interactive-trainer
+
 python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
 ```
-
-
 ## Usage
 
 Start a the jupyter notebook server with ImJoy
@@ -31,37 +37,42 @@ Start a the jupyter notebook server with ImJoy
 imjoy --jupyter
 ```
 
+Now you can either [download the tutorial notebook](https://github.com/imjoy-team/imjoy-interactive-segmentation/blob/master/Tutorial.ipynb), or follow the instructions below to create a notebook manually.
+
+You can now open your jupyter notebook in **Chrome** or **FireFox** (**Note: we DO NOT support Safari for now due to a bug**).
+
 Importantly, create a notebook file with kernel spec named "ImJoy Interactive ML".
 
+Inside the notebook, you can download our example dataset by running:
 
-You can download our example dataset to get started:
-```bash
+```python
 # this will save the example dataset to `./data/hpa_dataset_v2`
-python -c "from imjoy_interactive_trainer.data_utils import download_example_dataset;download_example_dataset()"
+from imjoy_interactive_trainer.data_utils import download_example_dataset
+download_example_dataset()
 ```
 
-Create a jupyter notebook and run the followin code in a cell:
+To start the interactive annotation tool, run the following code in a cell:
 ```python
-from imjoy_plugin import start_interactive_segmentation
+from imjoy_interactive_trainer.imjoy_plugin import start_interactive_segmentation
 
-model_config = dict(type="cellpose",
-            model_dir='./data/hpa_dataset_v2/__models__',
-            channels=[2, 3],
-            style_on=0,
-            default_diameter=100,
-            use_gpu=True,
-            pretrained_model=False,
-            resume=True)
+model_config = dict( type="cellpose",
+                     model_dir='./data/hpa_dataset_v2/__models__',
+                     use_gpu=True,
+                     channels=[2, 3],
+                     style_on=0,
+                     batch_size=1,
+                     default_diameter=100,
+                     pretrained_model=False, # here you can set to None or a file path if you want to use pretrained model
+                     resume=False) # set resume to True if you want to resume the last model when you started
 
 start_interactive_segmentation(model_config,
                                "./data/hpa_dataset_v2",
                                ["microtubules.png", "er.png", "nuclei.png"],
-                               mask_type="labels",
                                object_name="cell",
                                scale_factor=1.0)
 ```
 
-We also made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**
+
 
 ### Switch on fullscreen in Google Colab
 
