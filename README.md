@@ -62,3 +62,9 @@ start_interactive_segmentation(model_config,
 ```
 
 We also made a python notebook to illustrate the whole interactive training workflow in **tutorial.ipynb**
+
+### Switch on fullscreen in Google Colab
+
+In Google Colab, you can use the annotation tool in fullscreen mode, here is how you can switch on it:
+
+![how to switch on fullscreen mode in colab](./switch-on-fullscreen.gif)
