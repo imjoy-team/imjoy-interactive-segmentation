@@ -37,9 +37,9 @@ python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "
 ```
 ## Usage
 
-Start a the jupyter notebook server with ImJoy
+Start a the jupyter notebook server:
 ```bash
-imjoy --jupyter
+jupyter notebook
 ```
 
 Now you can either [download the tutorial notebook](https://github.com/imjoy-team/imjoy-interactive-segmentation/blob/master/Tutorial.ipynb), or follow the instructions below to create a notebook manually.
