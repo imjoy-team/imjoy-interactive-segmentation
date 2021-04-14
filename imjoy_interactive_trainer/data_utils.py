@@ -27,7 +27,7 @@ def download_example_dataset(data_dir='./data'):
     os.makedirs(data_dir, exist_ok=True)
     dataset_path = os.path.join(data_dir, "hpa_dataset_v2.zip")
     if not os.path.exists(dataset_path):
-        url = "https://kth.box.com/shared/static/hcnspau5lndyhkkzgv2ygsyq1978qo90.zip"
+        url = "https://zenodo.org/record/4430901/files/hpa_cell_segmentation_dataset_v2_512x512_4train_159test.zip"
         print("downloading dataset from " + url)
         download_with_url(url, dataset_path, unzip=True)
         print("dataset saved to " + dataset_path)
