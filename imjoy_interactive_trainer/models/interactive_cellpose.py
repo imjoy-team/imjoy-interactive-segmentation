@@ -64,34 +64,7 @@ class CellPoseInteractiveModel:
                 pretrained_model = False
             else:
                 print("Skipping resume, snapshot does not exist")
-        # load pretrained model weights if not specified
-        if pretrained_model is None:
-            cp_model_dir = Path.home().joinpath(".cellpose", "models")
-            os.makedirs(cp_model_dir, exist_ok=True)
-            weights_path = cp_model_dir / "cytotorch_0"
-            if not weights_path.exists():
-                urllib.request.urlretrieve(
-                    "https://www.cellpose.org/models/cytotorch_0", str(weights_path)
-                )
-            if not (cp_model_dir / "size_cytotorch_0.npy").exists():
-                urllib.request.urlretrieve(
-                    "https://www.cellpose.org/models/size_cytotorch_0.npy",
-                    str(cp_model_dir / "size_cytotorch_0.npy"),
-                )
-
-            print("loading pretrained cellpose model from " + str(weights_path))
-            if gpu:
-                self.model.net.load_state_dict(
-                    torch.load(str(weights_path)), strict=False
-                )
-            else:
-                self.model.net.load_state_dict(
-                    torch.load(str(weights_path), map_location=torch.device("cpu")),
-                    strict=False,
-                )
         self._iterations = 0
-        momentum = 0.9
-        weight_decay = 0.00001
         # Note: we are using Adam for adaptive learning rate which is different from the SDG used by cellpose
         # this support to make the training more robust to different settings
         self.model.optimizer = torch.optim.Adam(
