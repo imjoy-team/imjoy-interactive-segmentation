@@ -16,7 +16,6 @@ class CellPoseInteractiveModel:
         save_freq=None,
         use_gpu=True,
         diam_mean=30.0,
-        residual_on=1,
         learning_rate=0.001,
         batch_size=2,
         channels=(1, 2),
@@ -25,8 +24,7 @@ class CellPoseInteractiveModel:
         cellprob_threshold=0.0,
         interp=True,
         default_diameter=30,
-        style_on=0,
-        disable_mkldnn=True,
+        **kwarrgs
     ):
         assert type == "cellpose"
         assert model_dir is not None
@@ -53,10 +51,8 @@ class CellPoseInteractiveModel:
             torch=True,
             pretrained_model=pretrained_model,
             diam_mean=diam_mean,
-            residual_on=residual_on,
-            style_on=style_on,
             concatenation=0,
-            disable_mkldnn=disable_mkldnn,
+            **kwarrgs
         )
         os.makedirs(self.model_dir, exist_ok=True)
         if resume:
