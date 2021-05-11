@@ -24,7 +24,8 @@ class CellPoseInteractiveModel:
         cellprob_threshold=0.0,
         interp=True,
         default_diameter=30,
-        **kwarrgs
+        model_type="cyto",
+        **kwargs
     ):
         assert type == "cellpose"
         assert model_dir is not None
@@ -52,7 +53,7 @@ class CellPoseInteractiveModel:
             pretrained_model=pretrained_model,
             diam_mean=diam_mean,
             concatenation=0,
-            **kwarrgs
+            **kwargs
         )
         os.makedirs(self.model_dir, exist_ok=True)
         if resume:
@@ -64,6 +65,31 @@ class CellPoseInteractiveModel:
                 pretrained_model = False
             else:
                 print("Skipping resume, snapshot does not exist")
+        # load pretrained model weights if not specified
+        if pretrained_model is None:
+            cp_model_dir = Path.home().joinpath(".cellpose", "models")
+            os.makedirs(cp_model_dir, exist_ok=True)
+            weights_path = cp_model_dir / (model_type+"torch_0")
+            if not weights_path.exists():
+                urllib.request.urlretrieve(
+                    f"https://www.cellpose.org/models/{model_type}torch_0", str(weights_path)
+                )
+            if not (cp_model_dir / f"size_{model_type}torch_0.npy").exists():
+                urllib.request.urlretrieve(
+                    f"https://www.cellpose.org/models/size_{model_type}torch_0.npy",
+                    str(cp_model_dir / f"size_{model_type}torch_0.npy"),
+                )
+
+            print("loading pretrained cellpose model from " + str(weights_path))
+            if gpu:
+                self.model.net.load_state_dict(
+                    torch.load(str(weights_path)), strict=False
+                )
+            else:
+                self.model.net.load_state_dict(
+                    torch.load(str(weights_path), map_location=torch.device("cpu")),
+                    strict=False,
+                )
         self._iterations = 0
         # Note: we are using Adam for adaptive learning rate which is different from the SDG used by cellpose
         # this support to make the training more robust to different settings
