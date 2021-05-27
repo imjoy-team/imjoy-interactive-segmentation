@@ -101,14 +101,18 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
             ]
         ):
             continue
-        img = load_image(sample_path, input_channels, scale_factor)
+        try:
+            img = load_image(sample_path, input_channels, scale_factor)
 
-        annotation_file = os.path.join(data_dir, folder, sample_name, "annotation.json")
-        mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
-        labels = mask_dict["labels"]
-        mask = transform_labels(np.expand_dims(labels, axis=2))
-        info = {"name": sample_name, "path": sample_path, "folder": folder}
-        sample_pool.append((img, mask, info))
+            annotation_file = os.path.join(data_dir, folder, sample_name, "annotation.json")
+            mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+            labels = mask_dict["labels"]
+            mask = transform_labels(np.expand_dims(labels, axis=2))
+            info = {"name": sample_name, "path": sample_path, "folder": folder}
+            sample_pool.append((img, mask, info))
+        except Exception:
+            logger.exception("Failed to load sample: %s", sample_name)
+
     logger.info(
         "loaded %d samples from %s", len(sample_list), os.path.join(data_dir, folder)
     )

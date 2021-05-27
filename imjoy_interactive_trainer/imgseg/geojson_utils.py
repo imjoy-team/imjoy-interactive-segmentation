@@ -76,6 +76,7 @@ def geojson_to_masks(
         annot_dict_all[k]["properties"]["label"] for k in annot_dict_all.keys()
     )
     masks = {}
+    mask_dict = None
     for annot_type in annot_types:
         # print("annot_type: ", annot_type)
         # Filter the annotations by label
