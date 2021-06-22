@@ -38,14 +38,7 @@ logger = logging.getLogger("interactive-trainer." + __name__)
 
 
 def byte_scale(img):
-    if img.dtype == np.dtype(np.uint16):
-        img = np.clip(img, 0, 65535)
-        img = img / 65535 * 255
-    elif img.dtype == np.dtype(np.float32) or img.dtype == np.dtype(np.float64):
-        img = (img * 255).round()
-    elif img.dtype != np.dtype(np.uint8):
-        raise Exception("Invalid image dtype " + str(img.dtype))
-    return img
+    return (img/img.max()*255).astype('uint8')
 
 
 def load_image(img_path, channels, scale_factor):
