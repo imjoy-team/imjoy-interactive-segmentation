@@ -80,13 +80,13 @@ class AnnotationImporter:
     """Base class to import manual annoations importer"""
 
     def load(self, path_open):
-        """ Load and annotations and return dictionary with annotations."""
+        """Load and annotations and return dictionary with annotations."""
 
         raise NotImplementedError("No load function defined for this class!")
 
 
 class GeojsonImporter(AnnotationImporter):
-    """ Class to import manual annotations from GeoJson files. """
+    """Class to import manual annotations from GeoJson files."""
 
     def __init__(self, image_size=(2048, 2048)):
         """
@@ -173,11 +173,11 @@ class MaskGenerator:
         pass
 
     def generate(self, annotDic):
-        """  Generate the masks and return a dictionary."""
+        """Generate the masks and return a dictionary."""
         raise NotImplementedError("No load function defined for this class!")
 
     def plot(self):
-        """  Plot masks."""
+        """Plot masks."""
         pass
 
     def save(self, mask_dict, mask_key, file_name):
