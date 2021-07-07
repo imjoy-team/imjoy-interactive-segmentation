@@ -85,6 +85,7 @@ def _convert_mask(img_mask, label=None, simplify_tol=1.5):
                 geometry=pol_loop, properties={full_label: index_number, "label": label}
             )
         )
+    return features
 
 
 def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
