@@ -18,3 +18,4 @@ cellpose@git+https://github.com/oeway/cellpose@convert-keras#egg=cellpose
 #albumentations
 pytest
 shapely
+scikit-image
