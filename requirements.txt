@@ -17,3 +17,4 @@ torchvision>=0.8.0
 cellpose@git+https://github.com/oeway/cellpose@convert-keras#egg=cellpose
 #albumentations
 pytest
+shapely

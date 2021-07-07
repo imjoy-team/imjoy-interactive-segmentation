@@ -25,7 +25,7 @@ class CellPoseInteractiveModel:
         interp=True,
         default_diameter=30,
         model_type="cyto",
-        **kwargs
+        **kwargs,
     ):
         assert type == "cellpose"
         assert model_dir is not None
@@ -53,7 +53,7 @@ class CellPoseInteractiveModel:
             pretrained_model=pretrained_model,
             diam_mean=diam_mean,
             concatenation=0,
-            **kwargs
+            **kwargs,
         )
         os.makedirs(self.model_dir, exist_ok=True)
         if resume:
@@ -69,10 +69,11 @@ class CellPoseInteractiveModel:
         if pretrained_model is None:
             cp_model_dir = Path.home().joinpath(".cellpose", "models")
             os.makedirs(cp_model_dir, exist_ok=True)
-            weights_path = cp_model_dir / (model_type+"torch_0")
+            weights_path = cp_model_dir / (model_type + "torch_0")
             if not weights_path.exists():
                 urllib.request.urlretrieve(
-                    f"https://www.cellpose.org/models/{model_type}torch_0", str(weights_path)
+                    f"https://www.cellpose.org/models/{model_type}torch_0",
+                    str(weights_path),
                 )
             if not (cp_model_dir / f"size_{model_type}torch_0.npy").exists():
                 urllib.request.urlretrieve(
@@ -182,7 +183,11 @@ class CellPoseInteractiveModel:
         return imgi, lbl
 
     def train(
-        self, images, labels, iterations=1, rescale=True,
+        self,
+        images,
+        labels,
+        iterations=1,
+        rescale=True,
     ):
         imgi, lbl = self.augment(images, labels)
         train_loss = self.model._train_step(imgi, lbl)
