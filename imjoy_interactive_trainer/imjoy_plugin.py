@@ -44,7 +44,9 @@ class ImJoyPlugin:
                 self.viewer.remove_layer(self.geojson_layer)
             self._mask_prediction = None
             if folder == "test":
-                image, geojson_annotation, info = self._trainer.get_test_sample(sample_name)
+                image, geojson_annotation, info = self._trainer.get_test_sample(
+                    sample_name
+                )
             elif folder == "train":
                 image, geojson_annotation, info = self._trainer.get_training_sample(
                     sample_name
@@ -59,7 +61,10 @@ class ImJoyPlugin:
                 name=self.current_sample_info["name"],
             )
             self.geojson_layer = await self.viewer.add_shapes(
-                [], shape_type="polygon", edge_color="red", name=self._trainer.object_name,
+                [],
+                shape_type="polygon",
+                edge_color="red",
+                name=self._trainer.object_name,
             )
             # don't restore annotation for test if restore_test_annotation=False
             if folder == "test" and not self.restore_test_annotation:
@@ -172,7 +177,11 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             "annotation.json",
         )
-        with io.open(annotation_file, "r", encoding="utf-8-sig",) as myfile:
+        with io.open(
+            annotation_file,
+            "r",
+            encoding="utf-8-sig",
+        ) as myfile:
             polygons = json.load(myfile)
 
         polygons = self.flipud_annotation(polygons)
@@ -221,7 +230,7 @@ class ImJoyPlugin:
             prediction=self._mask_prediction,
         )
         self._mask_prediction = None
-        
+
         if self.image_layer:
             self.viewer.remove_layer(self.image_layer)
         if self.geojson_layer:
@@ -327,7 +336,7 @@ class ImJoyPlugin:
             self.current_sample_info["name"],
             self.current_annotation,
         )
-        if self.current_sample_info["folder"] == 'train':
+        if self.current_sample_info["folder"] == "train":
             self.reload_samples()
             await api.showMessage("Training sample pool reloaded.")
 
@@ -347,7 +356,11 @@ class ImJoyPlugin:
                         "label": "Get an Image",
                         "callback": self.get_next_sample,
                     },
-                    {"type": "button", "label": "Predict", "callback": self.predict,},
+                    {
+                        "type": "button",
+                        "label": "Predict",
+                        "callback": self.predict,
+                    },
                     {
                         "type": "button",
                         "label": "Start Training",
@@ -483,7 +496,9 @@ class ImJoyPlugin:
         self.viewer.set_loader(False)
 
 
-def start_interactive_segmentation(*args, restore_test_annotation=False, auto_get_sample=True, **kwargs):
+def start_interactive_segmentation(
+    *args, restore_test_annotation=False, auto_get_sample=True, **kwargs
+):
     trainer = InteractiveTrainer.get_instance(*args, **kwargs)
     plugin = ImJoyPlugin(trainer, restore_test_annotation, auto_get_sample)
     api.export(plugin)

@@ -49,7 +49,9 @@ def masks_to_annotation(datasets_dir, save_path):
 
 
 def geojson_to_masks(
-    file_proc, mask_types=["filled", "edge", "labels"], img_size=None,
+    file_proc,
+    mask_types=["filled", "edge", "labels"],
+    img_size=None,
 ):
 
     # annot_types = list(masks_to_create.keys())
@@ -76,6 +78,7 @@ def geojson_to_masks(
         annot_dict_all[k]["properties"]["label"] for k in annot_dict_all.keys()
     )
     masks = {}
+    mask_dict = None
     for annot_type in annot_types:
         # print("annot_type: ", annot_type)
         # Filter the annotations by label

@@ -15,7 +15,7 @@ from skimage import measure, morphology
 from skimage.transform import rescale
 
 from imjoy_interactive_trainer.imgseg.geojson_utils import geojson_to_masks
-from imjoy_interactive_trainer.data_utils import mask_to_geojson
+from imjoy_interactive_trainer.data_utils import mask_to_features
 from imjoy_interactive_trainer.imgseg.hpa_seg_utils import label_nuclei, label_cell2
 import asyncio
 import janus
@@ -38,14 +38,7 @@ logger = logging.getLogger("interactive-trainer." + __name__)
 
 
 def byte_scale(img):
-    if img.dtype == np.dtype(np.uint16):
-        img = np.clip(img, 0, 65535)
-        img = img / 65535 * 255
-    elif img.dtype == np.dtype(np.float32) or img.dtype == np.dtype(np.float64):
-        img = (img * 255).round()
-    elif img.dtype != np.dtype(np.uint8):
-        raise Exception("Invalid image dtype " + str(img.dtype))
-    return img
+    return (img / img.max() * 255).astype("uint8")
 
 
 def load_image(img_path, channels, scale_factor):
@@ -90,7 +83,8 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
     ]
     sample_pool = []
     logger.info(
-        "loading samples, input channels: %s", input_channels,
+        "loading samples, input channels: %s",
+        input_channels,
     )
     for sample_name in tqdm(sample_list):
         sample_path = os.path.join(data_dir, folder, sample_name)
@@ -101,14 +95,20 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
             ]
         ):
             continue
-        img = load_image(sample_path, input_channels, scale_factor)
+        try:
+            img = load_image(sample_path, input_channels, scale_factor)
 
-        annotation_file = os.path.join(data_dir, folder, sample_name, "annotation.json")
-        mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
-        labels = mask_dict["labels"]
-        mask = transform_labels(np.expand_dims(labels, axis=2))
-        info = {"name": sample_name, "path": sample_path, "folder": folder}
-        sample_pool.append((img, mask, info))
+            annotation_file = os.path.join(
+                data_dir, folder, sample_name, "annotation.json"
+            )
+            mask_dict = geojson_to_masks(annotation_file, mask_types=["labels"])
+            labels = mask_dict["labels"]
+            mask = transform_labels(np.expand_dims(labels, axis=2))
+            info = {"name": sample_name, "path": sample_path, "folder": folder}
+            sample_pool.append((img, mask, info))
+        except Exception:
+            logger.exception("Failed to load sample: %s", sample_name)
+
     logger.info(
         "loaded %d samples from %s", len(sample_list), os.path.join(data_dir, folder)
     )
@@ -117,7 +117,9 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
 
 def load_model(model_config):
     if model_config["type"] == "cellpose":
-        from imjoy_interactive_trainer.models.interactive_cellpose import CellPoseInteractiveModel
+        from imjoy_interactive_trainer.models.interactive_cellpose import (
+            CellPoseInteractiveModel,
+        )
 
         return CellPoseInteractiveModel(**model_config)
     else:
@@ -222,7 +224,10 @@ class InteractiveTrainer:
         else:
             self.loop = asyncio.get_running_loop()
         self.loop.run_in_executor(
-            None, self._training_loop, self.queue.sync_q, self.reports,
+            None,
+            self._training_loop,
+            self.queue.sync_q,
+            self.reports,
         )
 
     def train_once(self):
@@ -300,7 +305,10 @@ class InteractiveTrainer:
                         loss_metrics = [loss_metrics]
                     iteration += 1
                     reports.append(
-                        {"loss": loss_metrics[0], "iteration": iteration,}
+                        {
+                            "loss": loss_metrics[0],
+                            "iteration": iteration,
+                        }
                     )
                 else:
                     time.sleep(0.1)
@@ -433,7 +441,7 @@ class InteractiveTrainer:
     def predict(self, image):
         labels = self.model.predict(np.expand_dims(image, axis=0))
         labels = labels[0, :, :, 0]
-        geojson_features = mask_to_geojson(
+        geojson_features = mask_to_features(
             np.flipud(labels), label=self.object_name, simplify_tol=None
         )
         return geojson_features, labels

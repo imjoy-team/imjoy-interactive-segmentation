@@ -6,8 +6,8 @@ from setuptools import setup, find_packages
 PROJECT_DIR = Path(__file__).parent.resolve()
 PACKAGE_JSON = (PROJECT_DIR / "imjoy_interactive_trainer" / "VERSION").read_text()
 
-with open(PROJECT_DIR/ 'requirements.txt') as fp:
-    install_requires = [req for req in fp.read().split('\n') if not req.startswith('#')]
+with open(PROJECT_DIR / "requirements.txt") as fp:
+    install_requires = [req for req in fp.read().split("\n") if not req.startswith("#")]
 
 setup(
     name="imjoy-interactive-trainer",
@@ -18,7 +18,9 @@ setup(
     author="imjoy-team",
     author_email="imjoy.team@gmail.com",
     license="ImJoy Team",
-    packages=find_packages(include=["imjoy_interactive_trainer", "imjoy_interactive_trainer.*"]),
+    packages=find_packages(
+        include=["imjoy_interactive_trainer", "imjoy_interactive_trainer.*"]
+    ),
     include_package_data=True,
     zip_safe=False,
 )
