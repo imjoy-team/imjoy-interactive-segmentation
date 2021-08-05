@@ -40,7 +40,7 @@ pip install -c conda-forge shapely
 
 Start a the jupyter notebook server with ImJoy
 ```bash
-imjoy --jupyter
+jupyter notebook
 ```
 
 Importantly, create a notebook file with kernel spec named "ImJoy Interactive ML".
