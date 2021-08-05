@@ -31,7 +31,7 @@ pip install -r requirements.txt
 python -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
 ```
 
-If there is ```WindowsError: [Error 126]``` then install the module separately inside interactive-ml terminal. For example:
+On Windows, if there is ```WindowsError: [Error 126]``` then install the module separately inside interactive-ml terminal. For example:
 ```bash
 pip install -c conda-forge shapely
 ```
