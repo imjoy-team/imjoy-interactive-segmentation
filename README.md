@@ -15,7 +15,7 @@ In contrast to traditional deep learning model training where all the annotation
 Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
 ## Installation
-1. Install (Anaconda)[https://docs.anaconda.com/anaconda/install/index.html] or (Miniconda)[https://docs.conda.io/en/latest/miniconda.html]
+1. Install [Anaconda](https://docs.anaconda.com/anaconda/install/index.html) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
 2. Install Git
 ```bash
 conda install -c anaconda git
