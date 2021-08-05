@@ -15,13 +15,6 @@ In contrast to traditional deep learning model training where all the annotation
 Therefore, users can encourage the model to learn by feeding in appropriate data (eg. worse-performing samples).
 
 ## Installation
-
-1. Install (Anaconda)[https://docs.anaconda.com/anaconda/install/index.html] or (Miniconda)[https://docs.conda.io/en/latest/miniconda.html]
-2. Install Git 
-```bash
-conda install -c anaconda git
-```
-3. Create interactive-ml environment
 ```bash
 conda create -n interactive-ml python=3.7.2 -y
 conda activate interactive-ml
@@ -29,12 +22,9 @@ conda activate interactive-ml
 git clone https://github.com/CellProfiling/imjoy-interactive-segmentation.git
 cd imjoy-interactive-segmentation
 pip install -r requirements.txt
-python -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
+python3 -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
 ```
-If there is ```WindowsError: [Error 126]``` then install the module separately inside interactive-ml terminal. For example:
-```bash
-pip install -c conda-forge shapely
-```
+
 
 ## Usage
 

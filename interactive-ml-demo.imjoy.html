@@ -2,7 +2,7 @@
 {
   "name": "interactive-ml-demo",
   "type": "native-python",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive ML demo with Kaibu",
   "tags": [],
   "ui": "",
@@ -14,25 +14,22 @@
   "api_version": "0.1.8",
   "env": [],
   "permissions": [],
-  "requirements": ["repo:https://github.com/imjoy-team/imjoy-interactive-segmentation", "cmd: pip install -r imjoy-interactive-segmentation/requirements.txt --no-cache-dir", "cmd: pip uninstall opencv-python -y && pip install opencv-python-headless"],
+  "requirements": ["pip: git+https://github.com/imjoy-team/imjoy-interactive-segmentation@master#egg=imjoy-interactive-trainer", "cmd: pip uninstall opencv-python -y && pip install opencv-python-headless"],
   "dependencies": []
 }
 </config>
 
 <script lang="python">
-import sys
-sys.path.insert(0, './imjoy-interactive-segmentation')
-
 import os
-from download_example_dataset import download_with_url
 from imjoy import api
-from imjoy_plugin import start_interactive_segmentation
+from imjoy_interactive_trainer.data_utils import download_with_url
+from imjoy_interactive_trainer.imjoy_plugin import start_interactive_segmentation
 
 # download exmaple dataset
 os.makedirs("data", exist_ok=True)
 dataset_path = "./data/hpa_dataset_v2.zip"
 if not os.path.exists(dataset_path):
-    url = "https://kth.box.com/shared/static/hcnspau5lndyhkkzgv2ygsyq1978qo90.zip"
+    url = "https://zenodo.org/record/4430901/files/hpa_cell_segmentation_dataset_v2_512x512_4train_159test.zip"
     print("downloading dataset from " + url)
     download_with_url(url, dataset_path, unzip=True)
     print("dataset saved to " + dataset_path)

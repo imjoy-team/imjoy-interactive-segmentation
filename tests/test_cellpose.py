@@ -4,18 +4,19 @@ import sys
 import numpy as np
 
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from imgseg.geojson_utils import geojson_to_masks
+from imjoy_interactive_trainer.imgseg.geojson_utils import geojson_to_masks
 
 import cellpose
-from models.interactive_cellpose import CellPoseInteractiveModel
+from imjoy_interactive_trainer.models.interactive_cellpose import (
+    CellPoseInteractiveModel,
+)
 from cellpose.utils2 import (
     read_multi_channel_image,
     geojson_to_label,
     read_image,
     load_train_test_data,
 )
-from download_example_dataset import download_with_url
+from imjoy_interactive_trainer.download_example_dataset import download_with_url
 
 
 dataset_path = "./data/hpa_dataset_v2.zip"

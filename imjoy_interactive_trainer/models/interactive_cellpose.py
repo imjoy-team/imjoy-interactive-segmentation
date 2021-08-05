@@ -16,7 +16,6 @@ class CellPoseInteractiveModel:
         save_freq=None,
         use_gpu=True,
         diam_mean=30.0,
-        residual_on=1,
         learning_rate=0.001,
         batch_size=2,
         channels=(1, 2),
@@ -25,8 +24,8 @@ class CellPoseInteractiveModel:
         cellprob_threshold=0.0,
         interp=True,
         default_diameter=30,
-        style_on=0,
-        disable_mkldnn=True,
+        model_type="cyto",
+        **kwargs,
     ):
         assert type == "cellpose"
         assert model_dir is not None
@@ -53,10 +52,8 @@ class CellPoseInteractiveModel:
             torch=True,
             pretrained_model=pretrained_model,
             diam_mean=diam_mean,
-            residual_on=residual_on,
-            style_on=style_on,
             concatenation=0,
-            disable_mkldnn=disable_mkldnn,
+            **kwargs,
         )
         os.makedirs(self.model_dir, exist_ok=True)
         if resume:
@@ -72,15 +69,16 @@ class CellPoseInteractiveModel:
         if pretrained_model is None:
             cp_model_dir = Path.home().joinpath(".cellpose", "models")
             os.makedirs(cp_model_dir, exist_ok=True)
-            weights_path = cp_model_dir / "cytotorch_0"
+            weights_path = cp_model_dir / (model_type + "torch_0")
             if not weights_path.exists():
                 urllib.request.urlretrieve(
-                    "https://www.cellpose.org/models/cytotorch_0", str(weights_path)
+                    f"https://www.cellpose.org/models/{model_type}torch_0",
+                    str(weights_path),
                 )
-            if not (cp_model_dir / "size_cytotorch_0.npy").exists():
+            if not (cp_model_dir / f"size_{model_type}torch_0.npy").exists():
                 urllib.request.urlretrieve(
-                    "https://www.cellpose.org/models/size_cytotorch_0.npy",
-                    str(cp_model_dir / "size_cytotorch_0.npy"),
+                    f"https://www.cellpose.org/models/size_{model_type}torch_0.npy",
+                    str(cp_model_dir / f"size_{model_type}torch_0.npy"),
                 )
 
             print("loading pretrained cellpose model from " + str(weights_path))
@@ -94,8 +92,6 @@ class CellPoseInteractiveModel:
                     strict=False,
                 )
         self._iterations = 0
-        momentum = 0.9
-        weight_decay = 0.00001
         # Note: we are using Adam for adaptive learning rate which is different from the SDG used by cellpose
         # this support to make the training more robust to different settings
         self.model.optimizer = torch.optim.Adam(

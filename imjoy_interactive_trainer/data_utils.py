@@ -1,20 +1,45 @@
 import io
+import os
 import numpy as np
 import imageio
 from geojson import Polygon as geojson_polygon
 from shapely.geometry import Polygon as shapely_polygon
-from geojson import Feature, FeatureCollection, dump
+from geojson import Feature, FeatureCollection, dumps
 from skimage import measure, morphology
-import matplotlib.pyplot as plt
+import urllib.request
+import zipfile
 
 
-def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
-    """
-    Args:
-      img_mask (numpy array): numpy data, with each object being assigned with a unique uint number
-      label (str): like 'cell', 'nuclei'
-      simplify_tol (float): give a higher number if you want less coordinates.
-    """
+def download_with_url(
+    url_string, download_file_path="hpa_dataset_interactiveML.zip", unzip=True
+):
+    with urllib.request.urlopen(url_string) as response, open(
+        download_file_path, "wb"
+    ) as out_file:
+        data = response.read()  # a `bytes` object
+        out_file.write(data)
+
+    if unzip:
+        with zipfile.ZipFile(download_file_path, "r") as zip_ref:
+            zip_ref.extractall(os.path.dirname(download_file_path))
+
+
+def download_example_dataset(data_dir="./data"):
+    os.makedirs(data_dir, exist_ok=True)
+    dataset_path = os.path.join(data_dir, "hpa_dataset_v2.zip")
+    if not os.path.exists(dataset_path):
+        url = "https://zenodo.org/record/4430901/files/hpa_cell_segmentation_dataset_v2_512x512_4train_159test.zip"
+        print("downloading dataset from " + url)
+        download_with_url(url, dataset_path, unzip=True)
+        print("dataset saved to " + dataset_path)
+    else:
+        print(
+            "dataset already download, if you want to download again, please remove "
+            + dataset_path
+        )
+
+
+def _convert_mask(img_mask, label=None, simplify_tol=1.5):
     # for img_mask, for cells on border, should make sure on border pixels are # set to 0
     shape_x, shape_y = img_mask.shape
     shape_x, shape_y = shape_x - 1, shape_y - 1
@@ -60,10 +85,32 @@ def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
                 geometry=pol_loop, properties={full_label: index_number, "label": label}
             )
         )
+    return features
 
-    # feature_collection = FeatureCollection(
-    #    features, bbox=[0, 0, img_mask.shape[1] - 1, img_mask.shape[0] - 1]
-    # )
+
+def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
+    """
+    Args:
+      img_mask (numpy array): numpy data, with each object being assigned with a unique uint number
+      label (str): like 'cell', 'nuclei'
+      simplify_tol (float): give a higher number if you want less coordinates.
+    """
+    features = _convert_mask(img_mask, label=label, simplify_tol=simplify_tol)
+    feature_collection = FeatureCollection(
+        features, bbox=[0, 0, img_mask.shape[1] - 1, img_mask.shape[0] - 1]
+    )
+    geojson_str = dumps(feature_collection, sort_keys=True)
+    return geojson_str
+
+
+def mask_to_features(img_mask, label=None, simplify_tol=1.5):
+    """
+    Args:
+      img_mask (numpy array): numpy data, with each object being assigned with a unique uint number
+      label (str): like 'cell', 'nuclei'
+      simplify_tol (float): give a higher number if you want less coordinates.
+    """
+    features = _convert_mask(img_mask, label=label, simplify_tol=simplify_tol)
     features = list(
         map(
             lambda feature: np.array(
@@ -72,7 +119,7 @@ def mask_to_geojson(img_mask, label=None, simplify_tol=1.5):
             features,
         )
     )
-    return features  # feature_collection
+    return features
 
 
 def fig2img(fig):
@@ -85,6 +132,8 @@ def fig2img(fig):
 
 
 def plot_images(images, masks, original_image=None, original_mask=None):
+    import matplotlib.pyplot as plt
+
     fontsize = 18
     params = {
         "ytick.color": "gray",
@@ -123,6 +172,8 @@ def moving_average(interval, window_size):
 
 
 def plot_history(losses, data_size, iter_size, save_path):
+    import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots()
     ax.plot(range(iter_size), losses, color="red", alpha=0.2)
     ax.plot(
@@ -138,6 +189,8 @@ def plot_history(losses, data_size, iter_size, save_path):
 
 
 def plot_mask_overlay(img, mask, save_path):
+    import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots()
     ax.imshow(img)
     ax.imshow(mask, alpha=0.5)
