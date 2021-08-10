@@ -116,12 +116,17 @@ def load_sample_pool(data_dir, folder, input_channels, scale_factor, transform_l
 
 
 def load_model(model_config):
+    print( model_config["type"])
     if model_config["type"] == "cellpose":
         from imjoy_interactive_trainer.models.interactive_cellpose import (
             CellPoseInteractiveModel,
         )
-
         return CellPoseInteractiveModel(**model_config)
+    elif model_config["type"] == "unet":
+        from imjoy_interactive_trainer.models.interactive_unet import (
+            UnetInteractiveModel,
+        )
+        return UnetInteractiveModel(**model_config)
     else:
         raise Exception("Unsupported model type: " + model_config["type"])
 
