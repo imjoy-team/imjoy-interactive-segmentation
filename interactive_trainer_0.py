@@ -25,9 +25,9 @@ import json
 from data_utils import plot_images
 
 os.environ["SM_FRAMEWORK"] = "tf.keras"
-import segmentation_models as sm
-from segmentation_models.base import Loss
-from segmentation_models.base import functional as F
+import segmentation_models_pytorch as sm
+from segmentation_models_pytorch.base import Loss
+from segmentation_models_pytorch.base import functional as F
 
 os.makedirs("data", exist_ok=True)
 logging.basicConfig(
@@ -109,14 +109,14 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
     # disable warnings temporary
     warnings.filterwarnings("ignore")
 
-    # preprocess_input = sm.get_preprocessing(backbone)
+    # preprocess_input = smp.get_preprocessing(backbone)
 
     if model_path:
         logger.info("model loaded from %s", model_path)
         model = tf.keras.models.load_model(model_path, compile=False)
     else:
         # define model
-        model = sm.Unet(
+        model = smp.Unet(
             backbone,
             encoder_weights="imagenet",
             classes=3,
