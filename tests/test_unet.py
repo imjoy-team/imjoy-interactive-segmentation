@@ -19,12 +19,14 @@ model_config = dict(
     model_dir="./data/hpa_dataset_v2/__models__",
     use_gpu=False,
     channels=[2, 3],
-    pretrained_model=False,
-    resume=False,
+    pretrained_model=None,
+    resume=False
 )
 print(model_config["type"])
-from imjoy_interactive_trainer.models.interactive_unet import UnetInteractiveModel
+
+from imjoy_interactive_trainer.models.interactive_unet_1 import UnetInteractiveModel
 model = UnetInteractiveModel(**model_config)
+
 
 trainer = InteractiveTrainer.get_instance(
     model_config,
