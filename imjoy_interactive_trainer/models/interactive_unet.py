@@ -4,13 +4,19 @@ import albumentations as A
 
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 import segmentation_models_pytorch as smp
-from segmentation_models_pytorch.base import Loss
-from segmentation_models_pytorch.base import functional as F
+import segmentation_models_pytorch.losses as Loss
+from torch.nn.modules.loss import _Loss
+from segmentation_models_pytorch.utils import functional as F
+from segmentation_models_pytorch.encoders import get_preprocessing_fn
+import warnings
+import logging
 
+
+
+logger = logging.getLogger("interactive-trainer." + __name__)
 SMOOTH = 1e-5
 
-
-class BCEJaccardLoss(Loss):
+class BCEJaccardLoss(_Loss):
     def __init__(
         self,
         beta=1,
@@ -71,7 +77,7 @@ def zero_mean_unit_var(x):
     return (x - x.mean()) / x.std()
 
 
-def load_unet_model(model_path=None, backbone="mobilenetv2"):
+def load_unet_model(model_path=None, backbone="mobilenet_v2"):
     # disable warnings temporary
     warnings.filterwarnings("ignore")
 
@@ -83,23 +89,19 @@ def load_unet_model(model_path=None, backbone="mobilenetv2"):
     else:
         # define model
         model = smp.Unet(
-            backbone,
+            encoder_name=backbone,
             encoder_weights="imagenet",
             classes=3,
-            activation="sigmoid",
-            layers=tf.keras.layers,
-            models=tf.keras.models,
-            backend=tf.keras.backend,
-            utils=tf.keras.utils,
+            activation="sigmoid"
         )
         logger.info("model built from scratch, backbone: %s", backbone)
 
-    model.compile("Adam", loss=BCEJaccardLoss())
+    #model.compile("Adam", loss=Loss.JaccardLoss())
 
     warnings.resetwarnings()
     return model, zero_mean_unit_var
 
-
+"""
 def get_augmentor(target_size=128):
     crop_size = int(target_size * 1.415)
     return A.Compose(
@@ -119,24 +121,44 @@ def get_augmentor(target_size=128):
             ),
         ]
     )
+"""
 
+def get_augmentor(backbone="mobilenet_v2"):
+    preprocess_input = get_preprocessing_fn(backbone, pretrained='imagenet')
+    return preprocess_input
 
 class UnetInteractiveModel:
     def __init__(
         self,
-        model_path=None,
+        model_dir=None,
         type="unet",
         resume=True,
+        pretrained_model=None,
+        save_freq=None,
         use_gpu=True,
         learning_rate=0.2,
         batch_size=2,
-        backbone="mobilenetv2",
+        backbone="mobilenet_v2",
+        channels=[1, 2],
     ):
-        # device, gpu = tf.keras.models.assign_device(True, use_gpu)
+        assert type == "unet"
+        assert model_dir is not None
+        self.model_dir = model_dir
+        """
+        device, gpu = tf.keras.models.assign_device(True, use_gpu)
+        # device, gpu = models.assign_device(True, use_gpu)
+        if save_freq is None:
+            if gpu:
+                self.save_freq = 2000
+            else:
+                self.save_freq = 300
+        else:
+            self.save_freq = save_freq
+        """
         self.learning_rate = learning_rate
-        self.channels = [1, 2]
+        self.channels = channels
         self.batch_size = batch_size
-        self.model_path = model_path
+        self.model_path = pretrained_model
         self.class_weight = {0: 0.0, 1: 100.0, 2: 1.0}
         tf.keras.backend.clear_session()
 
@@ -159,6 +181,7 @@ class UnetInteractiveModel:
         training_size = 256
 
         # load latest model if exists
+        os.makedirs(self.model_dir, exist_ok=True)
         if resume:
             if resume == True:
                 label = "latest"
@@ -179,8 +202,8 @@ class UnetInteractiveModel:
         else:
             checkpoint = None
 
-        self.augmentor = get_augmentor(target_size=training_size)
-        self.model, self.preprocess_input = load_unet_model(model_path)
+        self.augmentor = get_augmentor()
+        self.model, self.preprocess_input = load_unet_model(self.model_path, backbone=backbone)
 
     def augment(self, X, y):
         augmented = self.augmentor(image=X, mask=y)
