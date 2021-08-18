@@ -72,16 +72,15 @@ for i in range(config.get("batch_size", 1)):
         np.asarray(batchX, dtype=batchX[0].dtype), 
         np.asarray(batchY, dtype=batchX[0].dtype)
     )
-print(loss_metrics)
+    print(loss_metrics)
 
-
-trainer = InteractiveTrainer.get_instance(
+trainer = InteractiveTrainer(
     model_config,
     "./data/hpa_dataset_v2",
     ["microtubules.png", "er.png", "nuclei.png"],
     scale_factor=1.0,
 )
-print(f"try testing shape {np.expand_dims(x_, axis=0).shape}")
+print(f"try testing shape {np.expand_dims(x_, axis=0).shape}, max {x_.max()}")
 trainer.predict(x_)
 #trainer.get_plot_augmentations()
 
