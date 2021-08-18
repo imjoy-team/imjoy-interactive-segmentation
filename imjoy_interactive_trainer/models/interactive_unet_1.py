@@ -167,7 +167,7 @@ class UnetInteractiveModel:
             lbl += [lb]
         imgi = torch.from_numpy(np.asarray(imgi)).to(self.device)#.unsqueeze(0)
         lbl = torch.from_numpy(np.asarray(lbl)).to(self.device)#.unsqueeze(0)
-        print(type(imgi))
+        print(f"Agument output dtype {type(imgi)}")
         return imgi, lbl
 
     def train(
@@ -222,11 +222,11 @@ class UnetInteractiveModel:
             the predicted label image
         """
         assert X.ndim == 4 # len(X.shape) == 4 #.ndim == 4
-        print(f"Input shape {torch.from_numpy(X).shape}, type {torch.from_numpy(X).dtype}")
-        x_tensor = torch.from_numpy(X.astype('float32')).to(self.device)
+        print(f"Input shape {X.shape}, type {torch.from_numpy(X).dtype}, max {X.max()}")
+        x_tensor = torch.from_numpy(X.astype('float32')).permute(0,3,2,1).to(self.device)
         pr_mask = self.model.predict(x_tensor)
-        pr_mask = (pr_mask.cpu().numpy().round())
-        print(f"Output shape {pr_mask.shape}, max {pr_mask.max()}")
+        pr_mask = (pr_mask.permute(0,3,2,1).cpu().numpy().round())
+        print(f"predicted output shape {pr_mask.shape}, max {pr_mask.max()}")
         return pr_mask
 
     def save(self, file_path):
