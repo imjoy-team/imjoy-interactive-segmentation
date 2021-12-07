@@ -25,7 +25,7 @@ conda install -c anaconda git
 conda create -n interactive-ml python=3.7.2 -y
 conda activate interactive-ml
 
-git clone https://github.com/CellProfiling/imjoy-interactive-segmentation.git
+git clone https://github.com/imjoy-team/imjoy-interactive-segmentation.git
 cd imjoy-interactive-segmentation
 pip install -r requirements.txt
 python -m ipykernel install --user --name imjoy-interactive-ml --display-name "ImJoy Interactive ML"
